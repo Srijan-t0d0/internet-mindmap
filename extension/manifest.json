@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "Internet Mindmap",
+  "version": "1.0.0",
+  "description": "Save any web page to your personal knowledge graph with ⌘⇧S",
+  "permissions": ["activeTab", "notifications"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["readability.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "save-page": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "Save current page to knowledge base"
+    }
+  },
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}
