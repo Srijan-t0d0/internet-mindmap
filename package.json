@@ -1,0 +1,20 @@
+{
+  "name": "internet-mindmap",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:api": "pnpm --filter @internet-mindmap/api dev",
+    "dev:web": "pnpm --filter @internet-mindmap/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "deploy:api": "pnpm --filter @internet-mindmap/api deploy",
+    "migrate": "pnpm --filter @internet-mindmap/api migrate"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "workerd"
+    ]
+  }
+}
