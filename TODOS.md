@@ -53,3 +53,7 @@
 **Depends on:** Reading list / queue view feature
 
 ## Completed
+
+### ~~Add `last_error` column to items table~~
+
+Done — DB schema already had `last_error` and `error_count` columns. Fixed `ProcessItemWorkflow` to catch errors and populate `last_error`, increment `error_count`, and set `status = 'error'`. On success, `last_error` is cleared.
