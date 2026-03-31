@@ -4,6 +4,8 @@ node_modules/
 # build output
 dist/
 .wrangler/
+.output/
+.wxt/
 
 # next.js (legacy)
 /.next/
@@ -19,6 +21,10 @@ npm-debug.log*
 # env files
 .env
 .env*.local
+
+# extension env (API base URL only, no secrets)
+!packages/extension/.env
+!packages/extension/.env.production
 
 # typescript
 *.tsbuildinfo

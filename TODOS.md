@@ -40,6 +40,30 @@
 **Priority:** P3
 **Depends on:** Core pipeline live with enough content to make a digest interesting (~50+ items)
 
+### Extension unit tests
+
+**What:** Add Vitest unit tests for extension pure logic: `detectSourceType`, `lib/api.ts`, `lib/extract.ts` (~13 tests).
+
+**Why:** The extension has 24 testable codepaths. The pure logic ones (not Chrome API dependent) are cheaply testable with Vitest, which WXT's Vite setup supports natively.
+
+**Context:** Tests deferred during the WXT migration. Focus on: `detectSourceType` (6 URL patterns), `lib/api.ts` (success/auth error/network error with mock fetch), `lib/extract.ts` (Readability extraction with mock DOM). Chrome API mocking (background.ts, content.ts) is lower value and more brittle.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** Extension migration to packages/extension/ (done)
+
+### Side panel KB search UI
+
+**What:** Build out the side panel with a search-your-knowledge-base UI, using the existing `/api/search` endpoint.
+
+**Why:** The side panel is scaffolded as an empty shell. Searching your KB from any page without leaving the tab is the obvious next high-value feature for the extension.
+
+**Context:** Side panel scaffold exists at `packages/extension/entrypoints/sidepanel/`. Would need: search input, results list (reuse ItemCard patterns from web package), semantic search via the existing API. Consider reusing components or patterns from `packages/web/src/components/`.
+
+**Effort:** M
+**Priority:** P2
+**Depends on:** Extension migration to packages/extension/ (done)
+
 ### Spaced repetition for saved content
 
 **What:** Surface items you saved but haven't revisited, using a spaced repetition algorithm (SM-2 or simplified version).

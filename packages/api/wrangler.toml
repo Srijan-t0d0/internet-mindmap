@@ -10,6 +10,7 @@ database_id = "placeholder-create-with-wrangler"
 [[vectorize]]
 binding = "VECTORIZE"
 index_name = "internet-mindmap-embeddings"
+remote = true
 
 [ai]
 binding = "AI"

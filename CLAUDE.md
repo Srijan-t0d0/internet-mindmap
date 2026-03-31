@@ -20,7 +20,7 @@ pnpm migrate
 
 ## Architecture
 
-- **Monorepo** — pnpm workspaces with 3 packages: `api`, `web`, `shared`
+- **Monorepo** — pnpm workspaces with 4 packages: `api`, `web`, `shared`, `extension`
 - **Hono on CF Workers** (`packages/api`) — API routes + Workflows
 - **Vite + React SPA on CF Pages** (`packages/web`) — all views (cards, list, graph, reading list, chat, detail panel)
 - **D1** (SQLite) — items, tags, item_tags
@@ -28,14 +28,16 @@ pnpm migrate
 - **Workers AI** — EmbeddingGemma for embeddings, Kimi K2.5 for LLM (tagging, summaries, chat)
 - **Cloudflare Workflows** — background processing pipeline (replaces pg-boss)
 - **Drizzle ORM** — type-safe D1 queries
-- **Browser Extension** — Chrome MV3, client-side Readability extraction (unchanged)
+- **Browser Extension** (`packages/extension`) — Chrome MV3 via WXT, React popup + side panel, TypeScript, Readability extraction
 
 ## Key Commands
 
 - `pnpm dev:api` — Hono dev server (wrangler dev, port 8787)
 - `pnpm dev:web` — Vite dev server (port 5173, proxies /api to 8787)
+- `pnpm dev:ext` — WXT dev server (opens Chrome with extension loaded)
 - `pnpm migrate` — run D1 schema migrations
 - `pnpm build` — build all packages
+- `pnpm build:ext` — build extension (output: `packages/extension/.output/chrome-mv3/`)
 - `pnpm typecheck` — typecheck all packages
 - `pnpm deploy:api` — deploy API Worker to Cloudflare
 
@@ -43,7 +45,7 @@ pnpm migrate
 
 ```
 packages/
-  shared/src/         — domain types + API request/response types
+  shared/src/         — domain types, API request/response types, shared utilities
   api/src/
     index.ts          — Hono app entry + Workflow export
     routes/           — save, search, items, chat, tags, agent, import
@@ -56,6 +58,14 @@ packages/
     App.tsx           — main SPA (state, filters, views)
     components/       — SearchBar, ItemCard, Sidebar, ChatPanel, DetailPanel, EmptyState, GraphView
     lib/api.ts        — typed API client
+  extension/
+    wxt.config.ts     — WXT config + manifest metadata
+    entrypoints/
+      background.ts   — service worker (⌘⇧S save handler)
+      content.ts      — content script (Readability extraction)
+      popup/          — React popup (settings, API token)
+      sidepanel/      — React side panel (KB search placeholder)
+    lib/              — typed API client, extraction logic, storage wrapper
 ```
 
 ## API Routes
@@ -88,7 +98,13 @@ Two static bearer tokens as Worker secrets:
 
 ## Extension
 
-Load unpacked from `extension/` directory in Chrome. Press ⌘⇧S to save current page. Update API_BASE URL in `extension/background.js` to point to the CF Worker.
+Built with WXT (Vite-based Chrome extension framework) + React + TypeScript.
+
+- **Dev:** `pnpm dev:ext` opens Chrome with the extension auto-loaded and HMR
+- **Build:** `pnpm build:ext` outputs to `packages/extension/.output/chrome-mv3/`
+- **Load unpacked:** point Chrome to `packages/extension/.output/chrome-mv3/`
+- **API token:** set via the extension popup (stored in `chrome.storage.local`)
+- **API URL:** configured in `.env` / `.env.production` (`WXT_API_BASE`)
 
 ## Design System
 
