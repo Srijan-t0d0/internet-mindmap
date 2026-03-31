@@ -52,10 +52,6 @@ export interface LLMProvider {
     content: string,
     sourceType: string
   ): Promise<TagsAndSummary>;
-  chatStream(
-    question: string,
-    items: { title: string; url: string; summary: string }[]
-  ): Promise<ReadableStream>;
 }
 
 // API request/response types

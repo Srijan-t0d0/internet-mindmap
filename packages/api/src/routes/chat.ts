@@ -1,19 +1,30 @@
 import { Hono } from "hono";
 import { drizzle } from "drizzle-orm/d1";
-import { eq, inArray } from "drizzle-orm";
+import { inArray } from "drizzle-orm";
+import { streamText } from "ai";
+import { createWorkersAI } from "workers-ai-provider";
 import type { Env } from "../bindings";
 import { auth } from "../middleware/auth";
 import { CloudflareEmbeddingProvider } from "../ai/embeddings/cloudflare";
-import { CloudflareLLMProvider } from "../ai/llm/cloudflare";
+import { buildChatMessages } from "../ai/llm/prompts";
 import * as schema from "../db/schema";
+
+const LLM_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8";
 
 const app = new Hono<{ Bindings: Env }>();
 
 app.post("/", auth("extension", "agent"), async (c) => {
-  const body = await c.req.json<{ question: string }>();
-  const { question } = body;
+  const body = await c.req.json<{ messages?: { role: string; content: string; parts?: { type: string; text?: string }[] }[] }>();
 
-  if (!question?.trim()) {
+  // AI SDK v6 sends { messages } with parts array — extract the last user message text
+  const lastUserMsg = [...(body.messages || [])].reverse().find((m) => m.role === "user");
+  const question = (
+    lastUserMsg?.parts?.filter((p) => p.type === "text").map((p) => p.text).join("") ||
+    lastUserMsg?.content ||
+    ""
+  ).trim();
+
+  if (!question) {
     return c.json({ error: "question is required" }, 400);
   }
 
@@ -28,9 +39,9 @@ app.post("/", auth("extension", "agent"), async (c) => {
   const vectorResults = await c.env.VECTORIZE.query(queryEmbedding, { topK: 5 });
 
   if (vectorResults.matches.length === 0) {
-    return new Response(
-      "I don't have any saved items to answer from yet. Save some content first!",
-      { headers: { "Content-Type": "text/plain" } }
+    return c.json(
+      { error: "No saved items found. Save some content first!" },
+      404
     );
   }
 
@@ -47,8 +58,7 @@ app.post("/", auth("extension", "agent"), async (c) => {
     .from(schema.items)
     .where(inArray(schema.items.id, matchIds));
 
-  const llm = new CloudflareLLMProvider(c.env.AI);
-  const stream = await llm.chatStream(
+  const { system, userMessage } = buildChatMessages(
     question,
     items.map((i) => ({
       title: i.title,
@@ -57,11 +67,19 @@ app.post("/", auth("extension", "agent"), async (c) => {
     }))
   );
 
-  return new Response(stream, {
-    headers: {
-      "Content-Type": "text/plain; charset=utf-8",
-      "Transfer-Encoding": "chunked",
+  const workersai = createWorkersAI({ binding: c.env.AI });
+  const result = streamText({
+    model: workersai(LLM_MODEL),
+    system,
+    messages: [{ role: "user", content: userMessage }],
+    maxOutputTokens: 2048,
+    onError({ error }) {
+      console.error("[chat streamText]", error);
     },
+  });
+
+  return result.toUIMessageStreamResponse({
+    headers: { "content-encoding": "identity" },
   });
 });
 

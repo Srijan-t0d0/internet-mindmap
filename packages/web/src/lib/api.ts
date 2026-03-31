@@ -87,10 +87,3 @@ export async function deleteItem(id: string): Promise<void> {
   });
 }
 
-export function chatStream(question: string): Promise<Response> {
-  return fetch(`${API_BASE}/api/chat`, {
-    method: "POST",
-    headers: headers(),
-    body: JSON.stringify({ question }),
-  });
-}

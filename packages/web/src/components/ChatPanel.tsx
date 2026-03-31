@@ -1,65 +1,47 @@
 import { useState, useRef, useEffect } from "react";
-import type { ChatMessage } from "@internet-mindmap/shared";
-import { chatStream } from "../lib/api";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
+
+const API_BASE = import.meta.env.VITE_API_URL || "";
+
+function getHeaders(): Record<string, string> {
+  const h: Record<string, string> = {};
+  const token = import.meta.env.VITE_API_TOKEN;
+  if (token) h["Authorization"] = `Bearer ${token}`;
+  return h;
+}
 
 export default function ChatPanel() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
-  const [isStreaming, setIsStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const { messages, sendMessage, status, error, clearError, stop } = useChat({
+    transport: new DefaultChatTransport({
+      api: `${API_BASE}/api/chat`,
+      headers: getHeaders,
+    }),
+    onError: (err) => console.error("[chat]", err),
+  });
+
+  const isStreaming = status === "streaming" || status === "submitted";
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  async function handleSend() {
-    const question = input.trim();
-    if (!question || isStreaming) return;
+  function getMessageText(msg: (typeof messages)[number]): string {
+    return msg.parts
+      .filter((p): p is { type: "text"; text: string } => p.type === "text")
+      .map((p) => p.text)
+      .join("");
+  }
 
+  function handleSubmit(e?: React.FormEvent) {
+    e?.preventDefault();
+    const text = input.trim();
+    if (!text || isStreaming) return;
     setInput("");
-    setMessages((prev) => [...prev, { role: "user", content: question }]);
-    setIsStreaming(true);
-
-    try {
-      const response = await chatStream(question);
-
-      if (!response.ok || !response.body) {
-        setMessages((prev) => [
-          ...prev,
-          { role: "assistant", content: "Sorry, something went wrong." },
-        ]);
-        setIsStreaming(false);
-        return;
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let assistantContent = "";
-
-      setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        assistantContent += decoder.decode(value, { stream: true });
-        setMessages((prev) => {
-          const updated = [...prev];
-          updated[updated.length - 1] = {
-            role: "assistant",
-            content: assistantContent,
-          };
-          return updated;
-        });
-      }
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: "Could not connect to the server." },
-      ]);
-    }
-
-    setIsStreaming(false);
+    sendMessage({ text });
   }
 
   return (
@@ -98,33 +80,36 @@ export default function ChatPanel() {
           </div>
         )}
 
-        {messages.map((msg, i) => (
-          <div
-            key={i}
-            className={`text-sm leading-relaxed rounded-lg px-3 py-2 max-w-[90%] ${
-              msg.role === "user" ? "ml-auto" : "mr-auto"
-            }`}
-            style={{
-              backgroundColor:
-                msg.role === "user"
-                  ? "var(--color-accent)"
-                  : "var(--color-bg-secondary)",
-              color: msg.role === "user" ? "#ffffff" : "var(--color-text-primary)",
-            }}
-          >
-            <span
-              className={
-                isStreaming && i === messages.length - 1 && msg.role === "assistant"
-                  ? "streaming-cursor"
-                  : ""
-              }
+        {messages.map((msg) => {
+          const text = getMessageText(msg);
+          return (
+            <div
+              key={msg.id}
+              className={`text-sm leading-relaxed rounded-lg px-3 py-2 max-w-[90%] ${
+                msg.role === "user" ? "ml-auto" : "mr-auto"
+              }`}
+              style={{
+                backgroundColor:
+                  msg.role === "user"
+                    ? "var(--color-accent)"
+                    : "var(--color-bg-secondary)",
+                color: msg.role === "user" ? "#ffffff" : "var(--color-text-primary)",
+              }}
             >
-              {msg.content}
-            </span>
-          </div>
-        ))}
+              <span
+                className={
+                  isStreaming && msg === messages[messages.length - 1] && msg.role === "assistant"
+                    ? "streaming-cursor"
+                    : ""
+                }
+              >
+                {text}
+              </span>
+            </div>
+          );
+        })}
 
-        {isStreaming && messages[messages.length - 1]?.content === "" && (
+        {isStreaming && messages[messages.length - 1]?.role === "user" && (
           <div
             className="flex gap-1 px-3 py-2"
             style={{ color: "var(--color-text-muted)" }}
@@ -135,18 +120,31 @@ export default function ChatPanel() {
           </div>
         )}
 
+        {error && (
+          <div
+            className="text-sm px-3 py-2 rounded-lg mr-auto"
+            style={{ backgroundColor: "var(--color-bg-secondary)", color: "var(--color-status-error)" }}
+          >
+            Something went wrong.{" "}
+            <button
+              onClick={() => clearError()}
+              className="underline"
+              style={{ color: "var(--color-accent)" }}
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
       <div className="p-4 border-t" style={{ borderColor: "var(--color-border)" }}>
-        <div className="flex gap-2">
+        <form onSubmit={handleSubmit} className="flex gap-2">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") handleSend();
-            }}
             placeholder="Ask a question..."
             disabled={isStreaming}
             className="flex-1 text-sm px-3 py-2 rounded-md border transition-colors focus:outline-none"
@@ -155,15 +153,26 @@ export default function ChatPanel() {
               backgroundColor: "var(--color-bg-card)",
             }}
           />
-          <button
-            onClick={handleSend}
-            disabled={isStreaming || !input.trim()}
-            className="px-3 py-2 rounded-md text-sm font-medium text-white transition-colors disabled:opacity-50"
-            style={{ backgroundColor: "var(--color-accent)" }}
-          >
-            Send
-          </button>
-        </div>
+          {isStreaming ? (
+            <button
+              type="button"
+              onClick={() => stop()}
+              className="px-3 py-2 rounded-md text-sm font-medium text-white transition-colors"
+              style={{ backgroundColor: "var(--color-status-error, #ef4444)" }}
+            >
+              Stop
+            </button>
+          ) : (
+            <button
+              type="submit"
+              disabled={!input.trim()}
+              className="px-3 py-2 rounded-md text-sm font-medium text-white transition-colors disabled:opacity-50"
+              style={{ backgroundColor: "var(--color-accent)" }}
+            >
+              Send
+            </button>
+          )}
+        </form>
       </div>
     </aside>
   );
