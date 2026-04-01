@@ -4,7 +4,7 @@ export interface Item {
   id: string;
   url: string;
   title: string;
-  source_type: "youtube" | "reddit" | "twitter" | "blog" | "other";
+  source_type: "youtube" | "reddit" | "twitter" | "github" | "hackernews" | "substack" | "blog" | "other";
   summary: string | null;
   key_passages: string[] | null;
   tags: string[];
@@ -61,6 +61,10 @@ export interface SaveRequest {
   title: string;
   source_type: string;
   extractedText?: string;
+  author?: string;
+  published?: string;
+  description?: string;
+  siteName?: string;
 }
 
 export interface SaveResponse {
