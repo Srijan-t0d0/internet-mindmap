@@ -6,8 +6,7 @@ export default defineContentScript({
   main() {
     browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message.action === "extract") {
-        const data = extractContent();
-        sendResponse(data);
+        extractContent().then(sendResponse);
       }
       return true;
     });
