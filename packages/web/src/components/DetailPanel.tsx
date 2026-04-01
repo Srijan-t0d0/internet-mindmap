@@ -1,23 +1,30 @@
+import { useState } from "react";
 import type { Item } from "@internet-mindmap/shared";
-
-const SOURCE_COLORS: Record<string, string> = {
-  youtube: "var(--color-source-youtube)",
-  reddit: "var(--color-source-reddit)",
-  twitter: "var(--color-source-twitter)",
-  github: "var(--color-text-muted)",
-  hackernews: "var(--color-text-muted)",
-  substack: "var(--color-text-muted)",
-  blog: "var(--color-source-blog)",
-  other: "var(--color-text-muted)",
-};
+import { SOURCE_CSS_COLORS } from "../lib/constants";
+import AlertDialog from "./ui/AlertDialog";
 
 interface DetailPanelProps {
   item: Item;
   onClose: () => void;
   onToggleRead: (item: Item) => void;
+  onDelete: (item: Item) => void;
 }
 
-export default function DetailPanel({ item, onClose, onToggleRead }: DetailPanelProps) {
+export default function DetailPanel({ item, onClose, onToggleRead, onDelete }: DetailPanelProps) {
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  async function handleConfirmDelete() {
+    setIsDeleting(true);
+    setDeleteError(null);
+    try {
+      await onDelete(item);
+    } catch {
+      setDeleteError("Failed to delete item. Try again.");
+      setIsDeleting(false);
+    }
+  }
   return (
     <aside
       className="w-[480px] h-screen flex-shrink-0 flex flex-col border-l overflow-y-auto"
@@ -38,7 +45,7 @@ export default function DetailPanel({ item, onClose, onToggleRead }: DetailPanel
           <div className="flex items-center gap-2 mb-2">
             <span
               className="w-1.5 h-1.5 rounded-full"
-              style={{ backgroundColor: SOURCE_COLORS[item.source_type] }}
+              style={{ backgroundColor: SOURCE_CSS_COLORS[item.source_type] }}
             />
             <span
               className="text-xs font-medium"
@@ -91,6 +98,16 @@ export default function DetailPanel({ item, onClose, onToggleRead }: DetailPanel
             }}
           >
             {item.is_read ? "Mark unread" : "Mark as read"}
+          </button>
+          <button
+            onClick={() => setShowDeleteDialog(true)}
+            className="text-sm font-medium px-3 py-1.5 rounded-md border transition-colors ml-auto"
+            style={{
+              color: "var(--color-error)",
+              borderColor: "var(--color-error)",
+            }}
+          >
+            Delete
           </button>
         </div>
 
@@ -179,6 +196,32 @@ export default function DetailPanel({ item, onClose, onToggleRead }: DetailPanel
           </a>
         </div>
       </div>
+
+      {deleteError && (
+        <div
+          className="mx-6 mb-4 text-sm px-3 py-2 rounded-md"
+          style={{
+            color: "var(--color-error)",
+            backgroundColor: "rgba(217, 79, 79, 0.08)",
+          }}
+        >
+          {deleteError}
+        </div>
+      )}
+
+      <AlertDialog
+        open={showDeleteDialog}
+        onClose={() => {
+          setShowDeleteDialog(false);
+          setDeleteError(null);
+        }}
+        onConfirm={handleConfirmDelete}
+        title="Delete this item?"
+        description="This cannot be undone. The item will be permanently removed from your knowledge base."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        loading={isDeleting}
+      />
     </aside>
   );
 }

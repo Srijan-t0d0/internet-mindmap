@@ -24,6 +24,9 @@ Source indicators (subtle, 6px dot):
 --source-youtube: #ff0000
 --source-reddit: #ff4500
 --source-twitter: #000000
+--source-github: #8b5cf6
+--source-hackernews: #ff6600
+--source-substack: #ff6719
 --source-blog: #4a9eff
 ```
 

@@ -1,14 +1,9 @@
 import type { Tag, ViewMode } from "@internet-mindmap/shared";
+import { SOURCE_TYPES, SOURCE_LABELS, SOURCE_CSS_COLORS } from "../lib/constants";
 
-const SOURCE_FILTERS = [
-  { key: "youtube", label: "YouTube", color: "var(--color-source-youtube)" },
-  { key: "reddit", label: "Reddit", color: "var(--color-source-reddit)" },
-  { key: "twitter", label: "X / Twitter", color: "var(--color-source-twitter)" },
-  { key: "github", label: "GitHub", color: "var(--color-text-muted)" },
-  { key: "hackernews", label: "Hacker News", color: "var(--color-text-muted)" },
-  { key: "substack", label: "Substack", color: "var(--color-text-muted)" },
-  { key: "blog", label: "Blog", color: "var(--color-source-blog)" },
-];
+const SOURCE_FILTERS = SOURCE_TYPES
+  .filter((key) => key !== "other")
+  .map((key) => ({ key, label: SOURCE_LABELS[key], color: SOURCE_CSS_COLORS[key] }));
 
 const VIEW_MODES: { key: ViewMode; label: string }[] = [
   { key: "cards", label: "Cards" },

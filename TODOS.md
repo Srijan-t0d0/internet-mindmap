@@ -88,6 +88,30 @@
 **Priority:** P3
 **Depends on:** Reading list / queue view feature
 
+### Server-side graph link computation
+
+**What:** Move tag-based link computation from client-side O(n^2) to a server-side API endpoint that returns pre-computed relationships.
+
+**Why:** The web SPA currently computes graph links by comparing every item's tags to every other item's tags (O(n^2)). A 200-node cap prevents performance degradation, but as the knowledge base grows past 500 items, the graph should load pre-computed relationships from the API instead.
+
+**Context:** The `buildGraphData()` function in `packages/web/src/lib/graph-data.ts` does the O(n^2) comparison. A new API endpoint (e.g., `GET /api/graph`) could compute links server-side using D1 SQL joins on the `item_tags` table, which would be O(n) with proper indexing. The client would receive nodes + links directly.
+
+**Effort:** M
+**Priority:** P3
+**Depends on:** Graph view rewrite (done)
+
+### Optimise polling to only fetch processing items
+
+**What:** During auto-polling, only fetch items with `status=pending` or `status=processing` instead of the full item list.
+
+**Why:** Current polling calls `fetchItems()` every 5 seconds, returning ALL items. With 500+ items, that's unnecessary bandwidth. Only the processing items need status checks during polling.
+
+**Context:** The polling logic is in `packages/web/src/App.tsx`. The `fetchItems` function already accepts a `status` filter parameter. During polling, call `fetchItems({ status: "pending" })` and merge the results into the existing items state instead of replacing the full list.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** Auto-polling implementation (done)
+
 ## Completed
 
 ### ~~Add `last_error` column to items table~~

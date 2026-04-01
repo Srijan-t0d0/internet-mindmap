@@ -13,9 +13,11 @@ function getHeaders(): Record<string, string> {
 
 export default function ChatPanel() {
   const [input, setInput] = useState("");
+  const [confirmClear, setConfirmClear] = useState(false);
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const { messages, sendMessage, status, error, clearError, stop } = useChat({
+  const { messages, sendMessage, status, error, clearError, stop, setMessages } = useChat({
     transport: new DefaultChatTransport({
       api: `${API_BASE}/api/chat`,
       headers: getHeaders,
@@ -53,13 +55,40 @@ export default function ChatPanel() {
         boxShadow: "var(--shadow-panel)",
       }}
     >
-      <div className="p-4 border-b" style={{ borderColor: "var(--color-border)" }}>
+      <div
+        className="p-4 border-b flex items-center justify-between"
+        style={{ borderColor: "var(--color-border)" }}
+      >
         <h2
           className="font-[family-name:var(--font-heading)] text-base font-semibold"
           style={{ color: "var(--color-text-primary)" }}
         >
           Ask your knowledge base
         </h2>
+        {messages.length > 0 && (
+          <button
+            onClick={() => {
+              if (confirmClear) {
+                if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+                setConfirmClear(false);
+                setMessages([]);
+              } else {
+                setConfirmClear(true);
+                confirmTimerRef.current = setTimeout(() => setConfirmClear(false), 3000);
+              }
+            }}
+            className="text-xs font-medium transition-colors"
+            style={{ color: confirmClear ? "var(--color-error)" : "var(--color-text-muted)" }}
+            onMouseEnter={(e) => {
+              if (!confirmClear) e.currentTarget.style.color = "var(--color-accent)";
+            }}
+            onMouseLeave={(e) => {
+              if (!confirmClear) e.currentTarget.style.color = "var(--color-text-muted)";
+            }}
+          >
+            {confirmClear ? "Clear chat?" : "New chat"}
+          </button>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-3">

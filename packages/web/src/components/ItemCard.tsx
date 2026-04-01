@@ -1,26 +1,5 @@
 import type { Item } from "@internet-mindmap/shared";
-
-const SOURCE_COLORS: Record<string, string> = {
-  youtube: "var(--color-source-youtube)",
-  reddit: "var(--color-source-reddit)",
-  twitter: "var(--color-source-twitter)",
-  github: "var(--color-text-muted)",
-  hackernews: "var(--color-text-muted)",
-  substack: "var(--color-text-muted)",
-  blog: "var(--color-source-blog)",
-  other: "var(--color-text-muted)",
-};
-
-const SOURCE_LABELS: Record<string, string> = {
-  youtube: "YouTube",
-  reddit: "Reddit",
-  twitter: "X / Twitter",
-  github: "GitHub",
-  hackernews: "Hacker News",
-  substack: "Substack",
-  blog: "Blog",
-  other: "Web",
-};
+import { SOURCE_CSS_COLORS, SOURCE_LABELS } from "../lib/constants";
 
 interface ItemCardProps {
   item: Item;
@@ -62,7 +41,7 @@ export default function ItemCard({
       <div className="flex items-center gap-2 mb-2">
         <span
           className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-          style={{ backgroundColor: SOURCE_COLORS[item.source_type] }}
+          style={{ backgroundColor: SOURCE_CSS_COLORS[item.source_type] }}
         />
         <span
           className="text-xs font-medium"

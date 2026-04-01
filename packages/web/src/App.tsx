@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import type { Item, Tag, ViewMode } from "@internet-mindmap/shared";
 import Sidebar from "./components/Sidebar";
 import SearchBar from "./components/SearchBar";
@@ -6,8 +6,9 @@ import ItemCard from "./components/ItemCard";
 import ChatPanel from "./components/ChatPanel";
 import DetailPanel from "./components/DetailPanel";
 import EmptyState from "./components/EmptyState";
-import GraphView from "./components/GraphView";
-import { fetchItems, searchItems, fetchTags, retryItem, updateItem } from "./lib/api";
+const GraphView = lazy(() => import("./components/GraphView"));
+import { fetchItems, searchItems, fetchTags, retryItem, updateItem, deleteItem } from "./lib/api";
+import { SOURCE_CSS_COLORS } from "./lib/constants";
 
 export default function App() {
   const [items, setItems] = useState<Item[]>([]);
@@ -52,6 +53,24 @@ export default function App() {
   useEffect(() => {
     loadItems();
     loadTags();
+  }, [loadItems, loadTags]);
+
+  // Poll when processing/pending items exist — ref prevents interval churn
+  const hasProcessingRef = useRef(false);
+  useEffect(() => {
+    hasProcessingRef.current = items.some(
+      (i) => i.status === "pending" || i.status === "processing"
+    );
+  }, [items]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (hasProcessingRef.current) {
+        loadItems();
+        loadTags();
+      }
+    }, 5000);
+    return () => clearInterval(interval);
   }, [loadItems, loadTags]);
 
   async function handleSearch(query: string) {
@@ -104,6 +123,16 @@ export default function App() {
     }
   }
 
+  async function handleDelete(item: Item) {
+    await deleteItem(item.id);
+    setItems((prev) => prev.filter((i) => i.id !== item.id));
+    setTotalItems((prev) => prev - 1);
+    if (selectedItem?.id === item.id) {
+      handleCloseDetail();
+    }
+    loadTags();
+  }
+
   function handleItemClick(item: Item) {
     setSelectedItem(item);
     setShowChat(false);
@@ -131,7 +160,7 @@ export default function App() {
         itemCount={totalItems}
       />
 
-      <main className="flex-1 h-screen overflow-y-auto p-6" role="main">
+      <main className="flex-1 h-screen overflow-y-auto overflow-x-hidden p-6" role="main">
         <div className="max-w-2xl mx-auto mb-6">
           <SearchBar
             value={searchQuery}
@@ -214,8 +243,18 @@ export default function App() {
             />
           )
         ) : viewMode === "graph" ? (
-          <div style={{ height: "calc(100vh - 120px)" }}>
-            <GraphView items={items} onItemClick={handleItemClick} />
+          <div className="flex-1" style={{ height: "calc(100vh - 140px)" }}>
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center h-full">
+                  <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
+                    Loading graph...
+                  </p>
+                </div>
+              }
+            >
+              <GraphView items={items} onItemClick={handleItemClick} />
+            </Suspense>
           </div>
         ) : viewMode === "list" ? (
           <div className="max-w-3xl mx-auto space-y-2">
@@ -229,17 +268,7 @@ export default function App() {
                 <span
                   className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                   style={{
-                    backgroundColor:
-                      ({
-                        youtube: "var(--color-source-youtube)",
-                        reddit: "var(--color-source-reddit)",
-                        twitter: "var(--color-source-twitter)",
-                        github: "var(--color-text-muted)",
-                        hackernews: "var(--color-text-muted)",
-                        substack: "var(--color-text-muted)",
-                        blog: "var(--color-source-blog)",
-                        other: "var(--color-text-muted)",
-                      } as Record<string, string>)[item.source_type],
+                    backgroundColor: SOURCE_CSS_COLORS[item.source_type],
                   }}
                 />
                 <span
@@ -292,6 +321,7 @@ export default function App() {
           item={selectedItem}
           onClose={handleCloseDetail}
           onToggleRead={handleToggleRead}
+          onDelete={handleDelete}
         />
       ) : showChat ? (
         <ChatPanel />
