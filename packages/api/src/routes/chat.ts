@@ -6,6 +6,7 @@ import { createWorkersAI } from "workers-ai-provider";
 import type { Env } from "../bindings";
 import { auth } from "../middleware/auth";
 import { CloudflareEmbeddingProvider } from "../ai/embeddings/cloudflare";
+import { createVectorStore } from "../vector-store";
 import { buildChatMessages } from "../ai/llm/prompts";
 import * as schema from "../db/schema";
 
@@ -32,11 +33,16 @@ app.post("/", auth("extension", "agent"), async (c) => {
     return c.json({ error: "Question too long (max 1000 characters)" }, 400);
   }
 
+  console.log("[chat] question:", question);
+
   const embedder = new CloudflareEmbeddingProvider(c.env.AI);
   const queryEmbedding = await embedder.embed(question);
+  console.log("[chat] embedding generated, dimensions:", queryEmbedding.length);
 
-  // Find top 5 relevant items via Vectorize
-  const vectorResults = await c.env.VECTORIZE.query(queryEmbedding, { topK: 5 });
+  // Find top 5 relevant items
+  const vectors = createVectorStore(c.env);
+  const vectorResults = await vectors.query(queryEmbedding, { topK: 5 });
+  console.log("[chat] vector search returned", vectorResults.matches.length, "matches");
 
   if (vectorResults.matches.length === 0) {
     return c.json(
@@ -46,6 +52,7 @@ app.post("/", auth("extension", "agent"), async (c) => {
   }
 
   const matchIds = vectorResults.matches.map((m) => m.id);
+  console.log("[chat] fetching items from D1, ids:", matchIds);
   const db = drizzle(c.env.DB);
 
   const items = await db
@@ -57,6 +64,7 @@ app.post("/", auth("extension", "agent"), async (c) => {
     })
     .from(schema.items)
     .where(inArray(schema.items.id, matchIds));
+  console.log("[chat] fetched", items.length, "items from D1:", items.map((i) => i.title));
 
   const { system, userMessage } = buildChatMessages(
     question,
@@ -66,8 +74,10 @@ app.post("/", auth("extension", "agent"), async (c) => {
       summary: i.summary || "",
     }))
   );
+  console.log("[chat] built prompt, system length:", system.length, "user message length:", userMessage.length);
 
   const workersai = createWorkersAI({ binding: c.env.AI });
+  console.log("[chat] streaming LLM response with model:", LLM_MODEL);
   const result = streamText({
     model: workersai(LLM_MODEL),
     system,

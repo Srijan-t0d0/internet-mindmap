@@ -1,7 +1,10 @@
 import type { EmbeddingProvider } from "@internet-mindmap/shared";
 
+/** bge-base-en-v1.5 has a 512 token window; ~2000 chars ≈ 512 tokens */
+const MAX_EMBED_CHARS = 2000;
+
 export class CloudflareEmbeddingProvider implements EmbeddingProvider {
-  readonly name = "cloudflare-embeddinggemma";
+  readonly name = "cloudflare-bge-base";
   readonly dimensions = 768;
   private ai: Ai;
 
@@ -10,10 +13,10 @@ export class CloudflareEmbeddingProvider implements EmbeddingProvider {
   }
 
   async embed(text: string): Promise<number[]> {
-    // Model may not be in CF types yet; cast required
-    const result = await (this.ai as any).run("@cf/google/embeddinggemma-300m", {
-      text: [text],
-    });
+    const truncated = text.slice(0, MAX_EMBED_CHARS);
+    const result = (await this.ai.run("@cf/baai/bge-base-en-v1.5", {
+      text: [truncated],
+    })) as { data: number[][] };
     return result.data[0];
   }
 }
