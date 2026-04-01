@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { logger } from "hono/logger";
 import type { Env } from "./bindings";
 import { corsMiddleware } from "./middleware/cors";
 import saveRoute from "./routes/save";
@@ -14,6 +15,7 @@ export { ProcessItemWorkflow } from "./workflows/process-item";
 const app = new Hono<{ Bindings: Env }>();
 
 // Global middleware
+app.use(logger());
 app.use("*", corsMiddleware);
 
 // Routes

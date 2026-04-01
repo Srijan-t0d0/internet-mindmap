@@ -4,6 +4,7 @@ import { eq, sql, and, inArray } from "drizzle-orm";
 import type { Env } from "../bindings";
 import { auth } from "../middleware/auth";
 import { CloudflareEmbeddingProvider } from "../ai/embeddings/cloudflare";
+import { createVectorStore } from "../vector-store";
 import * as schema from "../db/schema";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -25,11 +26,12 @@ app.get("/", auth("extension", "agent"), async (c) => {
   const embedder = new CloudflareEmbeddingProvider(c.env.AI);
   const queryEmbedding = await embedder.embed(query);
 
-  // Search Vectorize
+  // Search vectors
+  const vectors = createVectorStore(c.env);
   const filter: Record<string, string> = {};
   if (sourceType) filter.source_type = sourceType;
 
-  const vectorResults = await c.env.VECTORIZE.query(queryEmbedding, {
+  const vectorResults = await vectors.query(queryEmbedding, {
     topK: limit,
     filter: Object.keys(filter).length > 0 ? filter : undefined,
   });

@@ -14,15 +14,19 @@ app.post("/", auth("extension", "agent"), async (c) => {
     title: string;
     source_type: string;
     extractedText?: string;
+    author?: string;
+    published?: string;
+    description?: string;
+    siteName?: string;
   }>();
 
-  const { url, title, source_type, extractedText } = body;
+  const { url, title, source_type, extractedText, author, published, description, siteName } = body;
 
   if (!url || !title || !source_type) {
     return c.json({ error: "url, title, and source_type are required" }, 400);
   }
 
-  const validTypes = ["youtube", "reddit", "twitter", "blog", "other"];
+  const validTypes = ["youtube", "reddit", "twitter", "github", "hackernews", "substack", "blog", "other"];
   if (!validTypes.includes(source_type)) {
     return c.json(
       { error: `source_type must be one of: ${validTypes.join(", ")}` },
@@ -52,6 +56,10 @@ app.post("/", auth("extension", "agent"), async (c) => {
         rawContent: extractedText || null,
         status: "pending",
         lastError: null,
+        author: author || null,
+        published: published || null,
+        description: description || null,
+        siteName: siteName || null,
         updatedAt: now,
       })
       .where(eq(schema.items.id, existing.id));
@@ -64,14 +72,18 @@ app.post("/", auth("extension", "agent"), async (c) => {
       sourceType: source_type,
       rawContent: extractedText || null,
       status: "pending",
+      author: author || null,
+      published: published || null,
+      description: description || null,
+      siteName: siteName || null,
       createdAt: now,
       updatedAt: now,
     });
   }
 
-  // Trigger workflow
+  // Trigger workflow (use unique instance ID to avoid conflict with prior runs)
   await c.env.PROCESS_ITEM.create({
-    id: itemId,
+    id: `${itemId}-${Date.now()}`,
     params: { itemId, url, source_type },
   });
 

@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from "uuid";
 import * as schema from "../db/schema";
 import { CloudflareEmbeddingProvider } from "../ai/embeddings/cloudflare";
 import { CloudflareLLMProvider } from "../ai/llm/cloudflare";
+import { createVectorStore } from "../vector-store";
 import { fetchYouTubeTranscript } from "../lib/youtube";
 import type { Env } from "../bindings";
 
@@ -21,7 +22,9 @@ interface ProcessItemParams {
 export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemParams> {
   async run(event: WorkflowEvent<ProcessItemParams>, step: WorkflowStep) {
     const { itemId, url, source_type } = event.payload;
+    console.log("[workflow] START processing item:", itemId, url);
     const env = this.env;
+    const vectors = createVectorStore(env);
     const db = drizzle(env.DB);
 
     try {
@@ -64,7 +67,9 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
       // Step 3: Generate embedding
       const embedding = await step.do("generate-embedding", async () => {
         const embedder = new CloudflareEmbeddingProvider(env.AI);
-        const textToEmbed = content.content || content.title;
+        const textToEmbed = content.content
+          ? `${content.title}\n\n${content.content}`
+          : content.title;
         return await embedder.embed(textToEmbed);
       });
 
@@ -84,9 +89,9 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
 
       // Step 5: Store results
       await step.do("store-results", async () => {
-        // Upsert to Vectorize
         const tagNames = llmResult.tags.slice(0, 7);
-        await env.VECTORIZE.upsert([
+        console.log("[workflow] Upserting vectors, itemId:", itemId, "embedding length:", embedding.length);
+        await vectors.upsert([
           {
             id: itemId,
             values: embedding,

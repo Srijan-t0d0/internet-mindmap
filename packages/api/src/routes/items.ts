@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/d1";
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import type { Env } from "../bindings";
 import { auth } from "../middleware/auth";
+import { createVectorStore } from "../vector-store";
 import * as schema from "../db/schema";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -170,11 +171,12 @@ app.delete("/:id", auth("extension", "agent"), async (c) => {
     return c.json({ error: "Item not found" }, 404);
   }
 
-  // Delete from Vectorize to prevent ghost results
+  // Delete from vector store to prevent ghost results
   try {
-    await c.env.VECTORIZE.deleteByIds([id]);
+    const vectors = createVectorStore(c.env);
+    await vectors.deleteByIds([id]);
   } catch {
-    // Vectorize delete failure is non-fatal
+    // Vector delete failure is non-fatal
   }
 
   return c.json({ deleted: true, id });
@@ -204,10 +206,13 @@ app.post("/:id", auth("extension", "agent"), async (c) => {
     })
     .where(eq(schema.items.id, id));
 
-  await c.env.PROCESS_ITEM.create({
-    id,
+  console.log("[retry] Creating workflow for item:", id);
+  const workflowId = `${id}-retry-${Date.now()}`;
+  const instance = await c.env.PROCESS_ITEM.create({
+    id: workflowId,
     params: { itemId: id, url: item.url, source_type: item.sourceType },
   });
+  console.log("[retry] Workflow instance created:", instance.id);
 
   return c.json({ id, status: "pending", message: "Retry enqueued" });
 });

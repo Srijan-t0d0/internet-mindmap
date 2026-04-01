@@ -11,6 +11,10 @@ CREATE TABLE IF NOT EXISTS items (
   is_read     INTEGER NOT NULL DEFAULT 0,
   last_error  TEXT,
   error_count INTEGER NOT NULL DEFAULT 0,
+  author      TEXT,
+  published   TEXT,
+  description TEXT,
+  site_name   TEXT,
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -32,3 +36,10 @@ CREATE INDEX IF NOT EXISTS items_status_idx ON items (status);
 CREATE INDEX IF NOT EXISTS items_created_at_idx ON items (created_at DESC);
 CREATE INDEX IF NOT EXISTS items_is_read_idx ON items (is_read);
 CREATE INDEX IF NOT EXISTS tags_name_idx ON tags (name);
+
+-- Local vector store (replaces Cloudflare Vectorize for local dev)
+CREATE TABLE IF NOT EXISTS vectors (
+  id            TEXT PRIMARY KEY,
+  values_json   TEXT NOT NULL,
+  metadata_json TEXT DEFAULT '{}'
+);
