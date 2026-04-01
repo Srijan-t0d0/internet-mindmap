@@ -21,6 +21,9 @@ const SOURCE_COLORS: Record<string, string> = {
   youtube: "#ff0000",
   reddit: "#ff4500",
   twitter: "#000000",
+  github: "#8b5cf6",
+  hackernews: "#ff6600",
+  substack: "#ff6719",
   blog: "#4a9eff",
   other: "#a0a0a0",
 };

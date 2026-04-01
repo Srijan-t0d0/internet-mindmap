@@ -230,13 +230,16 @@ export default function App() {
                   className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                   style={{
                     backgroundColor:
-                      {
+                      ({
                         youtube: "var(--color-source-youtube)",
                         reddit: "var(--color-source-reddit)",
                         twitter: "var(--color-source-twitter)",
+                        github: "var(--color-text-muted)",
+                        hackernews: "var(--color-text-muted)",
+                        substack: "var(--color-text-muted)",
                         blog: "var(--color-source-blog)",
                         other: "var(--color-text-muted)",
-                      }[item.source_type],
+                      } as Record<string, string>)[item.source_type],
                   }}
                 />
                 <span

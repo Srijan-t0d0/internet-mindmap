@@ -4,6 +4,9 @@ const SOURCE_FILTERS = [
   { key: "youtube", label: "YouTube", color: "var(--color-source-youtube)" },
   { key: "reddit", label: "Reddit", color: "var(--color-source-reddit)" },
   { key: "twitter", label: "X / Twitter", color: "var(--color-source-twitter)" },
+  { key: "github", label: "GitHub", color: "var(--color-text-muted)" },
+  { key: "hackernews", label: "Hacker News", color: "var(--color-text-muted)" },
+  { key: "substack", label: "Substack", color: "var(--color-text-muted)" },
   { key: "blog", label: "Blog", color: "var(--color-source-blog)" },
 ];
 

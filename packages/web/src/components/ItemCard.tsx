@@ -4,6 +4,9 @@ const SOURCE_COLORS: Record<string, string> = {
   youtube: "var(--color-source-youtube)",
   reddit: "var(--color-source-reddit)",
   twitter: "var(--color-source-twitter)",
+  github: "var(--color-text-muted)",
+  hackernews: "var(--color-text-muted)",
+  substack: "var(--color-text-muted)",
   blog: "var(--color-source-blog)",
   other: "var(--color-text-muted)",
 };
@@ -12,6 +15,9 @@ const SOURCE_LABELS: Record<string, string> = {
   youtube: "YouTube",
   reddit: "Reddit",
   twitter: "X / Twitter",
+  github: "GitHub",
+  hackernews: "Hacker News",
+  substack: "Substack",
   blog: "Blog",
   other: "Web",
 };

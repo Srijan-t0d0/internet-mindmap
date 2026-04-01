@@ -42,15 +42,27 @@
 
 ### Extension unit tests
 
-**What:** Add Vitest unit tests for extension pure logic: `detectSourceType`, `lib/api.ts`, `lib/extract.ts` (~13 tests).
+**What:** Add Vitest unit tests for extension logic: `lib/api.ts`, `lib/extract.ts` async/timeout paths, content.ts async message handler (~10 tests).
 
-**Why:** The extension has 24 testable codepaths. The pure logic ones (not Chrome API dependent) are cheaply testable with Vitest, which WXT's Vite setup supports natively.
+**Why:** The extension has testable codepaths in the API client and extraction layer. `detectSourceType` is now tested in the shared package (9 tests). The remaining gaps are: `lib/api.ts` (success/auth error/network error with mock fetch), `lib/extract.ts` (Defuddle parseAsync timeout fallback, error fallback, happy path with mock Defuddle), and content.ts async message handling.
 
-**Context:** Tests deferred during the WXT migration. Focus on: `detectSourceType` (6 URL patterns), `lib/api.ts` (success/auth error/network error with mock fetch), `lib/extract.ts` (Readability extraction with mock DOM). Chrome API mocking (background.ts, content.ts) is lower value and more brittle.
+**Context:** `detectSourceType` moved to shared package and is tested. Extension now uses Defuddle `parseAsync()` with 10s timeout — the timeout/error fallback paths are the highest-value tests. Chrome API mocking (background.ts, content.ts) is lower value and more brittle.
 
 **Effort:** S
 **Priority:** P2
-**Depends on:** Extension migration to packages/extension/ (done)
+**Depends on:** Defuddle migration (done)
+
+### Display metadata in web SPA
+
+**What:** Show author, published date, and site name on ItemCard and DetailPanel components.
+
+**Why:** The extension now extracts rich metadata via Defuddle (author, published date, description, site name) and stores it in D1. This data exists but isn't shown anywhere in the UI. Displaying it makes saved items more scannable and useful.
+
+**Context:** New columns added to items table: `author`, `published`, `description`, `site_name`. The API items endpoint already returns all columns. Just need to add display in `packages/web/src/components/ItemCard.tsx` (author + date below title) and `packages/web/src/components/DetailPanel.tsx` (full metadata section). ~20 lines of JSX.
+
+**Effort:** S
+**Priority:** P2
+**Depends on:** Defuddle migration (done)
 
 ### Side panel KB search UI
 
