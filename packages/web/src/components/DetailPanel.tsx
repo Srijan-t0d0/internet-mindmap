@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Item } from "@internet-mindmap/shared";
-import { SOURCE_CSS_COLORS } from "../lib/constants";
+import { SOURCE_CSS_COLORS, SOURCE_LABELS } from "../lib/constants";
 import AlertDialog from "./ui/AlertDialog";
 
 interface DetailPanelProps {
@@ -25,9 +25,10 @@ export default function DetailPanel({ item, onClose, onToggleRead, onDelete }: D
       setIsDeleting(false);
     }
   }
+
   return (
     <aside
-      className="w-[480px] h-screen flex-shrink-0 flex flex-col border-l overflow-y-auto"
+      className="w-[480px] h-screen flex-shrink-0 flex flex-col border-l overflow-y-auto panel-slide-in"
       style={{
         backgroundColor: "var(--color-bg-card)",
         borderColor: "var(--color-border)",
@@ -35,7 +36,7 @@ export default function DetailPanel({ item, onClose, onToggleRead, onDelete }: D
       }}
     >
       <div
-        className="sticky top-0 p-6 border-b flex items-start justify-between gap-4"
+        className="sticky top-0 p-6 border-b flex items-start justify-between gap-4 z-10"
         style={{
           backgroundColor: "var(--color-bg-card)",
           borderColor: "var(--color-border)",
@@ -44,16 +45,19 @@ export default function DetailPanel({ item, onClose, onToggleRead, onDelete }: D
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-2">
             <span
-              className="w-1.5 h-1.5 rounded-full"
+              className="w-2 h-2 rounded-full"
               style={{ backgroundColor: SOURCE_CSS_COLORS[item.source_type] }}
             />
             <span
-              className="text-xs font-medium"
+              className="text-[11px] font-medium uppercase tracking-wide"
               style={{ color: "var(--color-text-muted)" }}
             >
-              {item.source_type}
+              {SOURCE_LABELS[item.source_type]}
             </span>
-            <span className="text-xs" style={{ color: "var(--color-text-muted)" }}>
+            <span
+              className="text-[11px] tabular-nums"
+              style={{ color: "var(--color-text-muted)" }}
+            >
               {new Date(item.created_at).toLocaleDateString("en-IN", {
                 day: "numeric",
                 month: "short",
@@ -70,28 +74,42 @@ export default function DetailPanel({ item, onClose, onToggleRead, onDelete }: D
         </div>
         <button
           onClick={onClose}
-          className="text-lg p-1 rounded-md hover:bg-bg-secondary transition-colors flex-shrink-0"
+          className="w-8 h-8 flex items-center justify-center rounded-md transition-colors duration-150 flex-shrink-0"
           style={{ color: "var(--color-text-muted)" }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "var(--color-bg-secondary)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "transparent";
+          }}
           aria-label="Close detail panel"
         >
-          ×
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" />
+            <line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
         </button>
       </div>
 
       <div className="p-6 space-y-6">
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <a
             href={item.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm font-medium px-3 py-1.5 rounded-md text-white transition-colors"
+            className="text-sm font-medium px-4 py-2 rounded-md text-white transition-all duration-150 hover:scale-[0.98] active:scale-[0.96] inline-flex items-center gap-1.5"
             style={{ backgroundColor: "var(--color-accent)" }}
           >
             Open original
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+              <polyline points="15 3 21 3 21 9" />
+              <line x1="10" y1="14" x2="21" y2="3" />
+            </svg>
           </a>
           <button
             onClick={() => onToggleRead(item)}
-            className="text-sm font-medium px-3 py-1.5 rounded-md border transition-colors"
+            className="text-sm font-medium px-4 py-2 rounded-md border transition-all duration-150 hover:scale-[0.98] active:scale-[0.96]"
             style={{
               color: "var(--color-text-secondary)",
               borderColor: "var(--color-border)",
@@ -101,10 +119,18 @@ export default function DetailPanel({ item, onClose, onToggleRead, onDelete }: D
           </button>
           <button
             onClick={() => setShowDeleteDialog(true)}
-            className="text-sm font-medium px-3 py-1.5 rounded-md border transition-colors ml-auto"
+            className="text-sm font-medium px-4 py-2 rounded-md border transition-all duration-150 hover:scale-[0.98] active:scale-[0.96] ml-auto"
             style={{
               color: "var(--color-error)",
-              borderColor: "var(--color-error)",
+              borderColor: "var(--color-border)",
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = "var(--color-error)";
+              e.currentTarget.style.backgroundColor = "rgba(217, 79, 79, 0.04)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = "var(--color-border)";
+              e.currentTarget.style.backgroundColor = "transparent";
             }}
           >
             Delete
@@ -114,13 +140,13 @@ export default function DetailPanel({ item, onClose, onToggleRead, onDelete }: D
         {item.summary && (
           <div>
             <h3
-              className="text-xs font-medium uppercase tracking-wider mb-2"
+              className="text-[11px] font-medium uppercase tracking-widest mb-3"
               style={{ color: "var(--color-text-muted)" }}
             >
               Summary
             </h3>
             <p
-              className="text-sm leading-relaxed"
+              className="text-sm leading-[1.7]"
               style={{ color: "var(--color-text-secondary)" }}
             >
               {item.summary}
@@ -131,16 +157,16 @@ export default function DetailPanel({ item, onClose, onToggleRead, onDelete }: D
         {item.key_passages && item.key_passages.length > 0 && (
           <div>
             <h3
-              className="text-xs font-medium uppercase tracking-wider mb-2"
+              className="text-[11px] font-medium uppercase tracking-widest mb-3"
               style={{ color: "var(--color-text-muted)" }}
             >
               Key Passages
             </h3>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {item.key_passages.map((passage, i) => (
                 <blockquote
                   key={i}
-                  className="text-sm leading-relaxed pl-3 border-l-2"
+                  className="text-sm leading-[1.7] pl-4 border-l-2"
                   style={{
                     color: "var(--color-text-secondary)",
                     borderColor: "var(--color-accent)",
@@ -156,19 +182,19 @@ export default function DetailPanel({ item, onClose, onToggleRead, onDelete }: D
         {item.tags && item.tags.length > 0 && (
           <div>
             <h3
-              className="text-xs font-medium uppercase tracking-wider mb-2"
+              className="text-[11px] font-medium uppercase tracking-widest mb-3"
               style={{ color: "var(--color-text-muted)" }}
             >
               Tags
             </h3>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-2">
               {item.tags.map((tag) => (
                 <span
                   key={tag}
-                  className="text-xs font-medium px-2.5 py-1 rounded-xl border border-dashed"
+                  className="text-xs font-medium px-2.5 py-1 rounded-full"
                   style={{
                     color: "var(--color-text-secondary)",
-                    borderColor: "var(--color-border)",
+                    backgroundColor: "var(--color-bg-secondary)",
                   }}
                 >
                   {tag}
@@ -180,7 +206,7 @@ export default function DetailPanel({ item, onClose, onToggleRead, onDelete }: D
 
         <div>
           <h3
-            className="text-xs font-medium uppercase tracking-wider mb-2"
+            className="text-[11px] font-medium uppercase tracking-widest mb-3"
             style={{ color: "var(--color-text-muted)" }}
           >
             Source
@@ -189,8 +215,14 @@ export default function DetailPanel({ item, onClose, onToggleRead, onDelete }: D
             href={item.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm break-all"
+            className="text-sm break-all leading-relaxed transition-colors duration-150"
             style={{ color: "var(--color-accent)" }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = "var(--color-accent-hover)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = "var(--color-accent)";
+            }}
           >
             {item.url}
           </a>
@@ -202,7 +234,7 @@ export default function DetailPanel({ item, onClose, onToggleRead, onDelete }: D
           className="mx-6 mb-4 text-sm px-3 py-2 rounded-md"
           style={{
             color: "var(--color-error)",
-            backgroundColor: "rgba(217, 79, 79, 0.08)",
+            backgroundColor: "rgba(217, 79, 79, 0.06)",
           }}
         >
           {deleteError}

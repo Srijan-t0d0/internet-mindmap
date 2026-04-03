@@ -1,9 +1,49 @@
+import type { ReactNode } from "react";
 import type { Tag, ViewMode } from "@internet-mindmap/shared";
 import { SOURCE_TYPES, SOURCE_LABELS, SOURCE_CSS_COLORS } from "../lib/constants";
 
 const SOURCE_FILTERS = SOURCE_TYPES
   .filter((key) => key !== "other")
   .map((key) => ({ key, label: SOURCE_LABELS[key], color: SOURCE_CSS_COLORS[key] }));
+
+const VIEW_ICONS: Record<ViewMode, ReactNode> = {
+  cards: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7" rx="1" />
+      <rect x="14" y="3" width="7" height="7" rx="1" />
+      <rect x="3" y="14" width="7" height="7" rx="1" />
+      <rect x="14" y="14" width="7" height="7" rx="1" />
+    </svg>
+  ),
+  list: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="8" y1="6" x2="21" y2="6" />
+      <line x1="8" y1="12" x2="21" y2="12" />
+      <line x1="8" y1="18" x2="21" y2="18" />
+      <line x1="3" y1="6" x2="3.01" y2="6" />
+      <line x1="3" y1="12" x2="3.01" y2="12" />
+      <line x1="3" y1="18" x2="3.01" y2="18" />
+    </svg>
+  ),
+  "reading-list": (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+    </svg>
+  ),
+  graph: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="5" cy="6" r="2" />
+      <circle cx="19" cy="6" r="2" />
+      <circle cx="5" cy="18" r="2" />
+      <circle cx="19" cy="18" r="2" />
+      <line x1="10.5" y1="10.5" x2="6.5" y2="7.5" />
+      <line x1="13.5" y1="10.5" x2="17.5" y2="7.5" />
+      <line x1="10.5" y1="13.5" x2="6.5" y2="16.5" />
+      <line x1="13.5" y1="13.5" x2="17.5" y2="16.5" />
+    </svg>
+  ),
+};
 
 const VIEW_MODES: { key: ViewMode; label: string }[] = [
   { key: "cards", label: "Cards" },
@@ -35,161 +75,155 @@ export default function Sidebar({
 }: SidebarProps) {
   return (
     <aside
-      className="w-60 h-screen flex-shrink-0 overflow-y-auto p-6 border-r"
+      className="w-60 h-screen flex-shrink-0 overflow-y-auto border-r flex flex-col"
       style={{
         backgroundColor: "var(--color-bg-secondary)",
         borderColor: "var(--color-border)",
       }}
     >
-      <h1
-        className="font-[family-name:var(--font-heading)] text-lg font-semibold mb-1"
-        style={{ color: "var(--color-text-primary)" }}
-      >
-        Internet Mindmap
-      </h1>
-      <p className="text-xs mb-6" style={{ color: "var(--color-text-muted)" }}>
-        {itemCount} items saved
-      </p>
-
-      {/* View modes */}
-      <div className="mb-6">
-        <h2
-          className="text-xs font-medium uppercase tracking-wider mb-3"
-          style={{ color: "var(--color-text-muted)" }}
+      <div className="p-6 pb-0">
+        <h1
+          className="font-[family-name:var(--font-heading)] text-lg font-semibold tracking-tight"
+          style={{ color: "var(--color-text-primary)" }}
         >
-          View
-        </h2>
-        <div className="space-y-1">
-          {VIEW_MODES.map((mode) => (
-            <button
-              key={mode.key}
-              onClick={() => onViewModeChange(mode.key)}
-              className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-colors"
-              style={{
-                backgroundColor:
-                  viewMode === mode.key ? "var(--color-bg-card)" : "transparent",
-                color:
-                  viewMode === mode.key
-                    ? "var(--color-text-primary)"
-                    : "var(--color-text-secondary)",
-                fontWeight: viewMode === mode.key ? 500 : 400,
-              }}
-            >
-              {mode.label}
-            </button>
-          ))}
-        </div>
+          Internet Mindmap
+        </h1>
+        <p className="text-xs mt-1 mb-6" style={{ color: "var(--color-text-muted)" }}>
+          {itemCount} items saved
+        </p>
       </div>
 
-      {/* Source filters */}
-      <div className="mb-6">
-        <h2
-          className="text-xs font-medium uppercase tracking-wider mb-3"
-          style={{ color: "var(--color-text-muted)" }}
-        >
-          Sources
-        </h2>
-        <div className="space-y-1">
-          <button
-            onClick={() => onSourceTypeChange(null)}
-            className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-colors"
-            style={{
-              backgroundColor: !selectedSourceType
-                ? "var(--color-bg-card)"
-                : "transparent",
-              color: !selectedSourceType
-                ? "var(--color-text-primary)"
-                : "var(--color-text-secondary)",
-              fontWeight: !selectedSourceType ? 500 : 400,
-            }}
+      <nav className="flex-1 px-3 pb-6 space-y-6 overflow-y-auto">
+        {/* View modes */}
+        <div>
+          <h2
+            className="text-[11px] font-medium uppercase tracking-widest mb-2 px-3"
+            style={{ color: "var(--color-text-muted)" }}
           >
-            All Sources
-          </button>
-          {SOURCE_FILTERS.map((source) => (
-            <button
-              key={source.key}
-              onClick={() =>
-                onSourceTypeChange(
-                  selectedSourceType === source.key ? null : source.key
-                )
-              }
-              className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-colors flex items-center gap-2"
-              style={{
-                backgroundColor:
-                  selectedSourceType === source.key
-                    ? "var(--color-bg-card)"
-                    : "transparent",
-                color:
-                  selectedSourceType === source.key
-                    ? "var(--color-text-primary)"
-                    : "var(--color-text-secondary)",
-                fontWeight: selectedSourceType === source.key ? 500 : 400,
-              }}
-            >
-              <span
-                className="w-1.5 h-1.5 rounded-full"
-                style={{ backgroundColor: source.color }}
-              />
-              {source.label}
-            </button>
-          ))}
+            View
+          </h2>
+          <div className="space-y-0.5">
+            {VIEW_MODES.map((mode) => {
+              const active = viewMode === mode.key;
+              return (
+                <button
+                  key={mode.key}
+                  onClick={() => onViewModeChange(mode.key)}
+                  className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-all duration-150 flex items-center gap-2.5"
+                  style={{
+                    backgroundColor: active ? "var(--color-bg-card)" : "transparent",
+                    color: active ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+                    fontWeight: active ? 500 : 400,
+                    boxShadow: active ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
+                  }}
+                >
+                  <span style={{ opacity: active ? 1 : 0.5 }}>{VIEW_ICONS[mode.key]}</span>
+                  {mode.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
 
-      {/* Tag filters */}
-      <div>
-        <h2
-          className="text-xs font-medium uppercase tracking-wider mb-3"
-          style={{ color: "var(--color-text-muted)" }}
-        >
-          Topics
-        </h2>
-        <div className="space-y-1">
-          <button
-            onClick={() => onTagChange(null)}
-            className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-colors"
-            style={{
-              backgroundColor: !selectedTag
-                ? "var(--color-bg-card)"
-                : "transparent",
-              color: !selectedTag
-                ? "var(--color-text-primary)"
-                : "var(--color-text-secondary)",
-              fontWeight: !selectedTag ? 500 : 400,
-            }}
+        {/* Source filters */}
+        <div>
+          <h2
+            className="text-[11px] font-medium uppercase tracking-widest mb-2 px-3"
+            style={{ color: "var(--color-text-muted)" }}
           >
-            All Topics
-          </button>
-          {tags.slice(0, 20).map((tag) => (
+            Sources
+          </h2>
+          <div className="space-y-0.5">
             <button
-              key={tag.id}
-              onClick={() =>
-                onTagChange(selectedTag === tag.name ? null : tag.name)
-              }
-              className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-colors flex items-center justify-between"
+              onClick={() => onSourceTypeChange(null)}
+              className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-all duration-150"
               style={{
-                backgroundColor:
-                  selectedTag === tag.name
-                    ? "var(--color-bg-card)"
-                    : "transparent",
-                color:
-                  selectedTag === tag.name
-                    ? "var(--color-text-primary)"
-                    : "var(--color-text-secondary)",
-                fontWeight: selectedTag === tag.name ? 500 : 400,
+                backgroundColor: !selectedSourceType ? "var(--color-bg-card)" : "transparent",
+                color: !selectedSourceType ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+                fontWeight: !selectedSourceType ? 500 : 400,
+                boxShadow: !selectedSourceType ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
               }}
             >
-              <span>{tag.name}</span>
-              <span
-                className="text-xs"
-                style={{ color: "var(--color-text-muted)" }}
+              All Sources
+            </button>
+            {SOURCE_FILTERS.map((source) => {
+              const active = selectedSourceType === source.key;
+              return (
+                <button
+                  key={source.key}
+                  onClick={() => onSourceTypeChange(active ? null : source.key)}
+                  className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-all duration-150 flex items-center gap-2.5"
+                  style={{
+                    backgroundColor: active ? "var(--color-bg-card)" : "transparent",
+                    color: active ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+                    fontWeight: active ? 500 : 400,
+                    boxShadow: active ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
+                  }}
+                >
+                  <span
+                    className="w-2 h-2 rounded-full flex-shrink-0 transition-transform duration-150"
+                    style={{
+                      backgroundColor: source.color,
+                      transform: active ? "scale(1.25)" : "scale(1)",
+                    }}
+                  />
+                  {source.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Tag filters */}
+        {tags.length > 0 && (
+          <div>
+            <h2
+              className="text-[11px] font-medium uppercase tracking-widest mb-2 px-3"
+              style={{ color: "var(--color-text-muted)" }}
+            >
+              Topics
+            </h2>
+            <div className="space-y-0.5">
+              <button
+                onClick={() => onTagChange(null)}
+                className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-all duration-150"
+                style={{
+                  backgroundColor: !selectedTag ? "var(--color-bg-card)" : "transparent",
+                  color: !selectedTag ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+                  fontWeight: !selectedTag ? 500 : 400,
+                  boxShadow: !selectedTag ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
+                }}
               >
-                {tag.item_count}
-              </span>
-            </button>
-          ))}
-        </div>
-      </div>
+                All Topics
+              </button>
+              {tags.slice(0, 20).map((tag) => {
+                const active = selectedTag === tag.name;
+                return (
+                  <button
+                    key={tag.id}
+                    onClick={() => onTagChange(active ? null : tag.name)}
+                    className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-all duration-150 flex items-center justify-between"
+                    style={{
+                      backgroundColor: active ? "var(--color-bg-card)" : "transparent",
+                      color: active ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+                      fontWeight: active ? 500 : 400,
+                      boxShadow: active ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
+                    }}
+                  >
+                    <span className="truncate">{tag.name}</span>
+                    <span
+                      className="text-[11px] tabular-nums flex-shrink-0 ml-2"
+                      style={{ color: "var(--color-text-muted)" }}
+                    >
+                      {tag.item_count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </nav>
     </aside>
   );
 }

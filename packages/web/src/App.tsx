@@ -55,7 +55,7 @@ export default function App() {
     loadTags();
   }, [loadItems, loadTags]);
 
-  // Poll when processing/pending items exist — ref prevents interval churn
+  // Poll when processing/pending items exist
   const hasProcessingRef = useRef(false);
   useEffect(() => {
     hasProcessingRef.current = items.some(
@@ -161,14 +161,14 @@ export default function App() {
       />
 
       <main className="flex-1 h-screen overflow-y-auto overflow-x-hidden p-6" role="main">
-        <div className="max-w-2xl mx-auto mb-6">
+        <div className="max-w-2xl mx-auto mb-8">
           <SearchBar
             value={searchQuery}
             onChange={setSearchQuery}
             onSearch={handleSearch}
           />
           {isSearching && (
-            <div className="mt-2 flex items-center gap-2">
+            <div className="mt-3 flex items-center gap-2 fade-in">
               <span
                 className="text-xs"
                 style={{ color: "var(--color-text-muted)" }}
@@ -176,7 +176,7 @@ export default function App() {
                 Showing results for &quot;{searchQuery}&quot;
               </span>
               <button
-                className="text-xs font-medium"
+                className="text-xs font-medium transition-colors duration-150"
                 style={{ color: "var(--color-accent)" }}
                 onClick={() => {
                   setSearchQuery("");
@@ -192,7 +192,7 @@ export default function App() {
 
         {viewMode === "reading-list" && !isSearching && (
           <h2
-            className="font-[family-name:var(--font-heading)] text-xl font-semibold mb-4"
+            className="font-[family-name:var(--font-heading)] text-xl font-semibold mb-5"
             style={{ color: "var(--color-text-primary)" }}
           >
             Reading List
@@ -204,15 +204,19 @@ export default function App() {
             {Array.from({ length: 6 }).map((_, i) => (
               <div
                 key={i}
-                className="rounded-lg p-6"
+                className="rounded-lg p-6 card-enter"
                 style={{
                   backgroundColor: "var(--color-bg-card)",
-                  boxShadow: "var(--shadow-card)",
+                  border: "1px solid var(--color-border-subtle)",
+                  animationDelay: `${i * 60}ms`,
                 }}
               >
-                <div className="skeleton h-3 rounded w-20 mb-3" />
-                <div className="skeleton h-4 rounded w-3/4 mb-2" />
-                <div className="skeleton h-3 rounded w-full mb-1" />
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="skeleton w-1.5 h-1.5 rounded-full" />
+                  <div className="skeleton h-2.5 rounded w-14" />
+                </div>
+                <div className="skeleton h-4 rounded w-4/5 mb-2" />
+                <div className="skeleton h-3 rounded w-full mb-1.5" />
                 <div className="skeleton h-3 rounded w-2/3" />
               </div>
             ))}
@@ -239,7 +243,7 @@ export default function App() {
           ) : (
             <EmptyState
               title="Your knowledge base is empty"
-              description="Install the browser extension and press ⌘⇧S on any web page to start building your personal knowledge graph."
+              description="Install the browser extension and press Command+Shift+S on any web page to start building your personal knowledge graph."
             />
           )
         ) : viewMode === "graph" ? (
@@ -257,59 +261,78 @@ export default function App() {
             </Suspense>
           </div>
         ) : viewMode === "list" ? (
-          <div className="max-w-3xl mx-auto space-y-2">
-            {items.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center gap-3 px-4 py-3 rounded-lg cursor-pointer transition-colors hover:bg-bg-secondary"
-                style={{ backgroundColor: "var(--color-bg-card)" }}
-                onClick={() => handleItemClick(item)}
-              >
-                <span
-                  className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+          <div className="max-w-3xl mx-auto">
+            <div
+              className="rounded-lg overflow-hidden"
+              style={{
+                border: "1px solid var(--color-border-subtle)",
+                backgroundColor: "var(--color-bg-card)",
+              }}
+            >
+              {items.map((item, index) => (
+                <div
+                  key={item.id}
+                  className="flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors duration-150 list-row-enter"
                   style={{
-                    backgroundColor: SOURCE_CSS_COLORS[item.source_type],
+                    borderTop: index > 0 ? "1px solid var(--color-border-subtle)" : "none",
+                    animationDelay: `${index * 30}ms`,
                   }}
-                />
-                <span
-                  className="text-sm font-medium truncate flex-1"
-                  style={{ color: "var(--color-text-primary)" }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = "var(--color-bg-secondary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                  }}
+                  onClick={() => handleItemClick(item)}
                 >
-                  {item.title}
-                </span>
-                {item.tags.slice(0, 2).map((tag) => (
                   <span
-                    key={tag}
-                    className="text-xs px-1.5 py-0.5 rounded border border-dashed flex-shrink-0"
+                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
                     style={{
-                      color: "var(--color-text-muted)",
-                      borderColor: "var(--color-border)",
+                      backgroundColor: SOURCE_CSS_COLORS[item.source_type],
                     }}
+                  />
+                  <span
+                    className="text-sm font-medium truncate flex-1"
+                    style={{ color: "var(--color-text-primary)" }}
                   >
-                    {tag}
+                    {item.title}
                   </span>
-                ))}
-                <span
-                  className="text-xs flex-shrink-0"
-                  style={{ color: "var(--color-text-muted)" }}
-                >
-                  {new Date(item.created_at).toLocaleDateString("en-IN", {
-                    day: "numeric",
-                    month: "short",
-                  })}
-                </span>
-              </div>
-            ))}
+                  {item.tags.slice(0, 2).map((tag) => (
+                    <span
+                      key={tag}
+                      className="text-[11px] px-2 py-0.5 rounded-full flex-shrink-0"
+                      style={{
+                        color: "var(--color-text-muted)",
+                        backgroundColor: "var(--color-bg-secondary)",
+                      }}
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                  <span
+                    className="text-[11px] tabular-nums flex-shrink-0"
+                    style={{ color: "var(--color-text-muted)" }}
+                  >
+                    {new Date(item.created_at).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-w-5xl mx-auto">
-            {items.map((item) => (
+            {items.map((item, index) => (
               <ItemCard
                 key={item.id}
                 item={item}
                 onClick={handleItemClick}
                 onRetry={handleRetry}
                 onToggleRead={handleToggleRead}
+                style={{ animationDelay: `${index * 50}ms` }}
+                className="card-enter"
               />
             ))}
           </div>

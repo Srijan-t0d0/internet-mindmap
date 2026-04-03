@@ -56,11 +56,11 @@ export default function ChatPanel() {
       }}
     >
       <div
-        className="p-4 border-b flex items-center justify-between"
+        className="px-5 py-4 border-b flex items-center justify-between"
         style={{ borderColor: "var(--color-border)" }}
       >
         <h2
-          className="font-[family-name:var(--font-heading)] text-base font-semibold"
+          className="font-[family-name:var(--font-heading)] text-[15px] font-semibold"
           style={{ color: "var(--color-text-primary)" }}
         >
           Ask your knowledge base
@@ -77,7 +77,7 @@ export default function ChatPanel() {
                 confirmTimerRef.current = setTimeout(() => setConfirmClear(false), 3000);
               }
             }}
-            className="text-xs font-medium transition-colors"
+            className="text-[11px] font-medium transition-colors duration-150"
             style={{ color: confirmClear ? "var(--color-error)" : "var(--color-text-muted)" }}
             onMouseEnter={(e) => {
               if (!confirmClear) e.currentTarget.style.color = "var(--color-accent)";
@@ -91,38 +91,59 @@ export default function ChatPanel() {
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
         {messages.length === 0 && (
-          <div className="text-center mt-8">
+          <div className="text-center mt-12 fade-in">
+            <div
+              className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-3"
+              style={{ backgroundColor: "var(--color-bg-secondary)" }}
+            >
+              <svg
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ color: "var(--color-text-muted)" }}
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </div>
             <p
-              className="text-sm mb-2"
-              style={{ color: "var(--color-text-muted)" }}
+              className="text-sm mb-1.5"
+              style={{ color: "var(--color-text-secondary)" }}
             >
               Ask anything about your saved content
             </p>
             <p
-              className="text-xs"
+              className="text-xs font-[family-name:var(--font-heading)] italic"
               style={{ color: "var(--color-text-muted)" }}
             >
-              &quot;What did I save about React?&quot;
+              "What did I save about React?"
             </p>
           </div>
         )}
 
         {messages.map((msg) => {
           const text = getMessageText(msg);
+          const isUser = msg.role === "user";
           return (
             <div
               key={msg.id}
-              className={`text-sm leading-relaxed rounded-lg px-3 py-2 max-w-[90%] ${
-                msg.role === "user" ? "ml-auto" : "mr-auto"
+              className={`text-sm leading-relaxed rounded-lg px-3.5 py-2.5 max-w-[88%] ${
+                isUser ? "ml-auto" : "mr-auto"
               }`}
               style={{
-                backgroundColor:
-                  msg.role === "user"
-                    ? "var(--color-accent)"
-                    : "var(--color-bg-secondary)",
-                color: msg.role === "user" ? "#ffffff" : "var(--color-text-primary)",
+                backgroundColor: isUser
+                  ? "var(--color-accent)"
+                  : "var(--color-bg-secondary)",
+                color: isUser ? "#ffffff" : "var(--color-text-primary)",
+                borderRadius: isUser
+                  ? "16px 16px 4px 16px"
+                  : "16px 16px 16px 4px",
               }}
             >
               <span
@@ -140,7 +161,7 @@ export default function ChatPanel() {
 
         {isStreaming && messages[messages.length - 1]?.role === "user" && (
           <div
-            className="flex gap-1 px-3 py-2"
+            className="flex gap-1.5 px-3.5 py-2.5"
             style={{ color: "var(--color-text-muted)" }}
           >
             <span className="bounce-dot w-1.5 h-1.5 rounded-full bg-current" />
@@ -151,13 +172,16 @@ export default function ChatPanel() {
 
         {error && (
           <div
-            className="text-sm px-3 py-2 rounded-lg mr-auto"
-            style={{ backgroundColor: "var(--color-bg-secondary)", color: "var(--color-status-error)" }}
+            className="text-sm px-3.5 py-2.5 rounded-lg mr-auto"
+            style={{
+              backgroundColor: "rgba(217, 79, 79, 0.06)",
+              color: "var(--color-error)",
+            }}
           >
             Something went wrong.{" "}
             <button
               onClick={() => clearError()}
-              className="underline"
+              className="underline underline-offset-2"
               style={{ color: "var(--color-accent)" }}
             >
               Dismiss
@@ -168,7 +192,10 @@ export default function ChatPanel() {
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 border-t" style={{ borderColor: "var(--color-border)" }}>
+      <div
+        className="px-4 py-3 border-t"
+        style={{ borderColor: "var(--color-border)" }}
+      >
         <form onSubmit={handleSubmit} className="flex gap-2">
           <input
             type="text"
@@ -176,18 +203,26 @@ export default function ChatPanel() {
             onChange={(e) => setInput(e.target.value)}
             placeholder="Ask a question..."
             disabled={isStreaming}
-            className="flex-1 text-sm px-3 py-2 rounded-md border transition-colors focus:outline-none"
+            className="flex-1 text-sm px-3.5 py-2.5 rounded-lg border transition-all duration-150 focus:outline-none"
             style={{
               borderColor: "var(--color-border)",
               backgroundColor: "var(--color-bg-card)",
+            }}
+            onFocus={(e) => {
+              e.currentTarget.style.borderColor = "var(--color-accent)";
+              e.currentTarget.style.boxShadow = "var(--shadow-search-focus)";
+            }}
+            onBlur={(e) => {
+              e.currentTarget.style.borderColor = "var(--color-border)";
+              e.currentTarget.style.boxShadow = "none";
             }}
           />
           {isStreaming ? (
             <button
               type="button"
               onClick={() => stop()}
-              className="px-3 py-2 rounded-md text-sm font-medium text-white transition-colors"
-              style={{ backgroundColor: "var(--color-status-error, #ef4444)" }}
+              className="px-3.5 py-2.5 rounded-lg text-sm font-medium text-white transition-all duration-150 hover:scale-[0.98] active:scale-[0.96]"
+              style={{ backgroundColor: "var(--color-error)" }}
             >
               Stop
             </button>
@@ -195,10 +230,13 @@ export default function ChatPanel() {
             <button
               type="submit"
               disabled={!input.trim()}
-              className="px-3 py-2 rounded-md text-sm font-medium text-white transition-colors disabled:opacity-50"
+              className="px-3.5 py-2.5 rounded-lg text-sm font-medium text-white transition-all duration-150 hover:scale-[0.98] active:scale-[0.96] disabled:opacity-40 disabled:pointer-events-none"
               style={{ backgroundColor: "var(--color-accent)" }}
             >
-              Send
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13" />
+                <polygon points="22 2 15 22 11 13 2 9 22 2" />
+              </svg>
             </button>
           )}
         </form>
