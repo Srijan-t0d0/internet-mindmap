@@ -137,6 +137,74 @@ export default function DetailPanel({ item, onClose, onToggleRead, onDelete }: D
           </button>
         </div>
 
+        {/* Metadata */}
+        {(item.author || item.site_name || item.published || item.description) && (
+          <div className="space-y-2">
+            {(item.author || item.site_name) && (
+              <div className="flex items-center gap-2 flex-wrap">
+                {item.author && (
+                  <span
+                    className="text-sm font-medium"
+                    style={{ color: "var(--color-text-primary)" }}
+                  >
+                    {item.author}
+                  </span>
+                )}
+                {item.site_name && (
+                  <span
+                    className="text-sm"
+                    style={{ color: "var(--color-text-muted)" }}
+                  >
+                    {item.author ? `on ${item.site_name}` : item.site_name}
+                  </span>
+                )}
+              </div>
+            )}
+            {item.published && (
+              <p
+                className="text-xs"
+                style={{ color: "var(--color-text-muted)" }}
+              >
+                Published{" "}
+                {new Date(item.published).toLocaleDateString("en-IN", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </p>
+            )}
+            {item.description && (
+              <p
+                className="text-sm leading-relaxed italic"
+                style={{ color: "var(--color-text-secondary)" }}
+              >
+                {item.description}
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* User notes */}
+        {item.notes && (
+          <div>
+            <h3
+              className="text-[11px] font-medium uppercase tracking-widest mb-3"
+              style={{ color: "var(--color-text-muted)" }}
+            >
+              Notes
+            </h3>
+            <p
+              className="text-sm leading-[1.7] px-3 py-2.5 rounded-lg"
+              style={{
+                color: "var(--color-text-primary)",
+                backgroundColor: "var(--color-bg-secondary)",
+              }}
+            >
+              {item.notes}
+            </p>
+          </div>
+        )}
+
         {item.summary && (
           <div>
             <h3

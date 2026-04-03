@@ -18,9 +18,10 @@ app.post("/", auth("extension", "agent"), async (c) => {
     published?: string;
     description?: string;
     siteName?: string;
+    notes?: string;
   }>();
 
-  const { url, title, source_type, extractedText, author, published, description, siteName } = body;
+  const { url, title, source_type, extractedText, author, published, description, siteName, notes } = body;
 
   if (!url || !title || !source_type) {
     return c.json({ error: "url, title, and source_type are required" }, 400);
@@ -60,6 +61,7 @@ app.post("/", auth("extension", "agent"), async (c) => {
         published: published || null,
         description: description || null,
         siteName: siteName || null,
+        notes: notes || null,
         updatedAt: now,
       })
       .where(eq(schema.items.id, existing.id));
@@ -76,6 +78,7 @@ app.post("/", auth("extension", "agent"), async (c) => {
       published: published || null,
       description: description || null,
       siteName: siteName || null,
+      notes: notes || null,
       createdAt: now,
       updatedAt: now,
     });

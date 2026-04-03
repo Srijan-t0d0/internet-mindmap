@@ -47,15 +47,16 @@ app.post("/search", auth("agent"), async (c) => {
     .select({
       itemId: schema.itemTags.itemId,
       tagName: schema.tags.name,
+      position: schema.itemTags.position,
     })
     .from(schema.itemTags)
     .innerJoin(schema.tags, eq(schema.itemTags.tagId, schema.tags.id))
     .where(inArray(schema.itemTags.itemId, matchIds));
 
-  const tagsByItem = new Map<string, string[]>();
+  const tagsByItem = new Map<string, { name: string; position: number }[]>();
   for (const row of itemTagRows) {
     const existing = tagsByItem.get(row.itemId) || [];
-    existing.push(row.tagName);
+    existing.push({ name: row.tagName, position: row.position });
     tagsByItem.set(row.itemId, existing);
   }
 
@@ -63,7 +64,9 @@ app.post("/search", auth("agent"), async (c) => {
     title: item.title,
     url: item.url,
     summary: item.summary,
-    tags: tagsByItem.get(item.id)?.sort() || [],
+    tags: (tagsByItem.get(item.id) || [])
+      .sort((a, b) => a.position - b.position)
+      .map((t) => t.name),
     similarity_score: scoreMap.get(item.id) || 0,
   }));
 

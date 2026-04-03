@@ -1,4 +1,5 @@
 import { extractContent } from "../lib/extract";
+import { showSaveWidget } from "../lib/save-widget";
 
 export default defineContentScript({
   matches: ["<all_urls>"],
@@ -7,8 +8,15 @@ export default defineContentScript({
     browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       if (message.action === "extract") {
         extractContent().then(sendResponse);
+        return true;
       }
-      return true;
+      if (message.action === "show-save-widget") {
+        extractContent().then((data) => {
+          showSaveWidget(data);
+          sendResponse({ ok: true });
+        });
+        return true;
+      }
     });
   },
 });

@@ -39,7 +39,11 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
       // Step 2: Fetch content
       const content = await step.do("fetch-content", async () => {
         const item = await db
-          .select({ rawContent: schema.items.rawContent, title: schema.items.title })
+          .select({
+            rawContent: schema.items.rawContent,
+            title: schema.items.title,
+            notes: schema.items.notes,
+          })
           .from(schema.items)
           .where(eq(schema.items.id, itemId))
           .get();
@@ -61,29 +65,31 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
           }
         }
 
-        return { content: text, title: item.title };
+        return { content: text, title: item.title, notes: item.notes || "" };
       });
 
       // Step 3: Generate embedding
       const embedding = await step.do("generate-embedding", async () => {
         const embedder = new CloudflareEmbeddingProvider(env.AI);
-        const textToEmbed = content.content
-          ? `${content.title}\n\n${content.content}`
-          : content.title;
+        const parts = [content.title];
+        if (content.notes) parts.push(`User notes: ${content.notes}`);
+        if (content.content) parts.push(content.content);
+        const textToEmbed = parts.join("\n\n");
         return await embedder.embed(textToEmbed);
       });
 
-      // Step 4: Generate tags + summary (skip if no content beyond title)
+      // Step 4: Generate tags + summary + better title (skip if no content beyond title)
       const llmResult = await step.do("generate-tags", async () => {
         if (!content.content) {
-          return { tags: [], summary: "No content could be extracted.", keyPassages: [] };
+          return { betterTitle: "", tags: [], summary: "No content could be extracted.", keyPassages: [] };
         }
 
         const llm = new CloudflareLLMProvider(env.AI);
         return await llm.generateTagsAndSummary(
           content.title,
           content.content,
-          source_type
+          source_type,
+          content.notes || undefined
         );
       });
 
@@ -104,21 +110,25 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
         ]);
 
         // Update item in D1
+        const updates: Record<string, unknown> = {
+          summary: llmResult.summary,
+          keyPassages: JSON.stringify(llmResult.keyPassages),
+          vectorizeId: itemId,
+          status: "ready",
+          lastError: null,
+          updatedAt: new Date().toISOString(),
+        };
+        if (llmResult.betterTitle) {
+          updates.title = llmResult.betterTitle;
+        }
         await db
           .update(schema.items)
-          .set({
-            summary: llmResult.summary,
-            keyPassages: JSON.stringify(llmResult.keyPassages),
-            vectorizeId: itemId,
-            status: "ready",
-            lastError: null,
-            updatedAt: new Date().toISOString(),
-          })
+          .set(updates)
           .where(eq(schema.items.id, itemId));
 
-        // Upsert tags
-        for (const tagName of tagNames) {
-          const normalised = tagName.toLowerCase().trim();
+        // Upsert tags (position preserves broad→narrow hierarchy)
+        for (let i = 0; i < tagNames.length; i++) {
+          const normalised = tagNames[i].toLowerCase().trim();
           if (!normalised) continue;
 
           // Check if tag exists
@@ -140,6 +150,7 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
               itemId,
               tagId: tagRow.id,
               source: "auto",
+              position: i,
             });
           } catch {
             // Duplicate — already linked

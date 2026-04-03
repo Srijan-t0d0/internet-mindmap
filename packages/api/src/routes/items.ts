@@ -55,15 +55,16 @@ app.get("/", auth("extension", "agent"), async (c) => {
     .select({
       itemId: schema.itemTags.itemId,
       tagName: schema.tags.name,
+      position: schema.itemTags.position,
     })
     .from(schema.itemTags)
     .innerJoin(schema.tags, eq(schema.itemTags.tagId, schema.tags.id))
     .where(inArray(schema.itemTags.itemId, itemIds));
 
-  const tagsByItem = new Map<string, string[]>();
+  const tagsByItem = new Map<string, { name: string; position: number }[]>();
   for (const row of itemTagRows) {
     const existing = tagsByItem.get(row.itemId) || [];
-    existing.push(row.tagName);
+    existing.push({ name: row.tagName, position: row.position });
     tagsByItem.set(row.itemId, existing);
   }
 
@@ -75,10 +76,17 @@ app.get("/", auth("extension", "agent"), async (c) => {
     source_type: item.sourceType,
     summary: item.summary,
     key_passages: item.keyPassages ? JSON.parse(item.keyPassages) : null,
-    tags: tagsByItem.get(item.id)?.sort() || [],
+    tags: (tagsByItem.get(item.id) || [])
+      .sort((a, b) => a.position - b.position)
+      .map((t) => t.name),
     status: item.status,
     is_read: item.isRead,
     last_error: item.lastError,
+    author: item.author,
+    published: item.published,
+    description: item.description,
+    site_name: item.siteName,
+    notes: item.notes,
     created_at: item.createdAt,
     updated_at: item.updatedAt,
   }));
@@ -105,9 +113,9 @@ app.get("/:id", auth("extension", "agent"), async (c) => {
     return c.json({ error: "Item not found" }, 404);
   }
 
-  // Get tags
+  // Get tags ordered by hierarchy (broad → narrow)
   const itemTagRows = await db
-    .select({ tagName: schema.tags.name, source: schema.itemTags.source })
+    .select({ tagName: schema.tags.name, position: schema.itemTags.position })
     .from(schema.itemTags)
     .innerJoin(schema.tags, eq(schema.itemTags.tagId, schema.tags.id))
     .where(eq(schema.itemTags.itemId, id));
@@ -118,9 +126,16 @@ app.get("/:id", auth("extension", "agent"), async (c) => {
     key_passages: item.keyPassages ? JSON.parse(item.keyPassages) : null,
     is_read: item.isRead,
     last_error: item.lastError,
+    author: item.author,
+    published: item.published,
+    description: item.description,
+    site_name: item.siteName,
+    notes: item.notes,
     created_at: item.createdAt,
     updated_at: item.updatedAt,
-    tags: itemTagRows.map((t) => t.tagName).sort(),
+    tags: itemTagRows
+      .sort((a, b) => a.position - b.position)
+      .map((t) => t.tagName),
   });
 });
 

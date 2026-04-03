@@ -19,6 +19,7 @@ export const items = sqliteTable(
     published: text("published"),
     description: text("description"),
     siteName: text("site_name"),
+    notes: text("notes"),
     createdAt: text("created_at").notNull().default("(datetime('now'))"),
     updatedAt: text("updated_at").notNull().default("(datetime('now'))"),
   },
@@ -49,6 +50,7 @@ export const itemTags = sqliteTable(
       .notNull()
       .references(() => tags.id, { onDelete: "cascade" }),
     source: text("source").notNull().default("auto"),
+    position: integer("position").notNull().default(0),
   },
   (table) => [primaryKey({ columns: [table.itemId, table.tagId] })]
 );

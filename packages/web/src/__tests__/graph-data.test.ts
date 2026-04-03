@@ -13,6 +13,11 @@ function makeItem(overrides: Partial<Item> & { id: string }): Item {
     status: "ready",
     is_read: false,
     last_error: null,
+    author: null,
+    published: null,
+    description: null,
+    site_name: null,
+    notes: null,
     created_at: "2026-01-01T00:00:00Z",
     ...overrides,
   };

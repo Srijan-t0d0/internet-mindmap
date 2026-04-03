@@ -11,6 +11,11 @@ export interface Item {
   status: "pending" | "processing" | "ready" | "error";
   is_read: boolean;
   last_error: string | null;
+  author: string | null;
+  published: string | null;
+  description: string | null;
+  site_name: string | null;
+  notes: string | null;
   similarity?: number;
   created_at: string;
   updated_at?: string;
@@ -40,6 +45,7 @@ export interface EmbeddingProvider {
 }
 
 export interface TagsAndSummary {
+  betterTitle: string;
   tags: string[];
   summary: string;
   keyPassages: string[];
@@ -50,7 +56,8 @@ export interface LLMProvider {
   generateTagsAndSummary(
     title: string,
     content: string,
-    sourceType: string
+    sourceType: string,
+    notes?: string
   ): Promise<TagsAndSummary>;
 }
 
@@ -65,6 +72,7 @@ export interface SaveRequest {
   published?: string;
   description?: string;
   siteName?: string;
+  notes?: string;
 }
 
 export interface SaveResponse {

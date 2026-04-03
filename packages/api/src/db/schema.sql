@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS items (
   published   TEXT,
   description TEXT,
   site_name   TEXT,
+  notes       TEXT,
   created_at  TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -27,7 +28,8 @@ CREATE TABLE IF NOT EXISTS tags (
 CREATE TABLE IF NOT EXISTS item_tags (
   item_id TEXT REFERENCES items(id) ON DELETE CASCADE,
   tag_id  TEXT REFERENCES tags(id) ON DELETE CASCADE,
-  source  TEXT NOT NULL DEFAULT 'auto',
+  source   TEXT NOT NULL DEFAULT 'auto',
+  position INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (item_id, tag_id)
 );
 

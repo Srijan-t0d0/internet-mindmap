@@ -82,11 +82,25 @@ export default function ItemCard({
 
       {/* Title */}
       <h3
-        className="font-[family-name:var(--font-heading)] text-[15px] font-semibold leading-snug mb-2 line-clamp-2 transition-colors duration-150 group-hover:text-[var(--color-accent-hover)]"
+        className="font-[family-name:var(--font-heading)] text-[15px] font-semibold leading-snug mb-1 line-clamp-2 transition-colors duration-150 group-hover:text-[var(--color-accent-hover)]"
         style={{ color: "var(--color-text-primary)" }}
       >
         {item.title}
       </h3>
+
+      {/* Author / site byline */}
+      {(item.author || item.site_name) && (
+        <p
+          className="text-[12px] leading-tight mb-2 truncate"
+          style={{ color: "var(--color-text-muted)" }}
+        >
+          {item.author}
+          {item.author && item.site_name && (
+            <span style={{ color: "var(--color-border)" }}>{" \u00b7 "}</span>
+          )}
+          {item.site_name}
+        </p>
+      )}
 
       {/* Summary or skeleton */}
       {isProcessing ? (

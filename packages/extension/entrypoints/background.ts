@@ -1,4 +1,3 @@
-import { saveItem } from "../lib/api";
 import { getApiToken } from "../lib/storage";
 
 export default defineBackground(() => {
@@ -29,17 +28,10 @@ export default defineBackground(() => {
 
       if (!tab || !tab.id) return;
 
-      const data = await browser.tabs.sendMessage(tab.id, {
-        action: "extract",
+      // Show the save widget on the page (handles extraction + save internally)
+      await browser.tabs.sendMessage(tab.id, {
+        action: "show-save-widget",
       });
-
-      if (!data || !data.url) {
-        showNotification("Save Failed", "Could not extract page content.");
-        return;
-      }
-
-      await saveItem(data);
-      showNotification("Saved!", `"${data.title}" is being processed.`);
     } catch (err) {
       console.error("Save failed:", err);
       const message =

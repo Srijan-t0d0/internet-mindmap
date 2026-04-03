@@ -3,18 +3,24 @@ import type { TagsAndSummary } from "@internet-mindmap/shared";
 export function buildTaggingPrompt(
   title: string,
   content: string,
-  sourceType: string
+  sourceType: string,
+  notes?: string
 ): string {
   const truncated = content.slice(0, 16000);
 
+  const notesSection = notes
+    ? `\nUser's notes (why they saved this):\n${notes}\n`
+    : "";
+
   return `Analyse this saved web content and return JSON with exactly these fields:
-- "tags": array of 3-7 topic tags (lowercase, no hashtags). Be specific (e.g. "react-server-components" not "programming").
+- "betterTitle": a concise, descriptive title (under 80 chars). Clean up clickbait, remove site names, fix ALL CAPS, and make it clear what the content is actually about. If the original title is already good, return it as-is.
+- "tags": array of 3-7 topic tags (lowercase, no hashtags), ordered from broadest to most specific. The first tag should be the broad domain, then progressively narrower. Examples: ["finance", "investing", "index-funds", "sp500-vs-total-market"] or ["science", "neuroscience", "memory", "spaced-repetition"] or ["design", "typography", "variable-fonts"]. This hierarchy helps the user browse from general to specific. Consider the user's notes when choosing tags — they indicate why this content matters to the user.
 - "summary": 2-3 sentence summary of the key ideas.
 - "keyPassages": array of 3-5 important quotes or passages from the text (verbatim extracts, not paraphrases). Each under 200 chars.
 
 Source type: ${sourceType}
 Title: ${title}
-
+${notesSection}
 Content:
 ${truncated}
 
@@ -45,6 +51,7 @@ export function parseTagsResponse(text: string): TagsAndSummary {
     const cleaned = text.replace(/^```(?:json)?\s*\n?/m, "").replace(/\n?```\s*$/m, "");
     const parsed = JSON.parse(cleaned);
     return {
+      betterTitle: typeof parsed.betterTitle === "string" ? parsed.betterTitle : "",
       tags: Array.isArray(parsed.tags) ? parsed.tags.slice(0, 7) : [],
       summary: typeof parsed.summary === "string" ? parsed.summary : "",
       keyPassages: Array.isArray(parsed.keyPassages)
@@ -52,6 +59,6 @@ export function parseTagsResponse(text: string): TagsAndSummary {
         : [],
     };
   } catch {
-    return { tags: [], summary: text.slice(0, 500), keyPassages: [] };
+    return { betterTitle: "", tags: [], summary: text.slice(0, 500), keyPassages: [] };
   }
 }
