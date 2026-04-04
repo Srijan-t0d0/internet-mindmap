@@ -14,6 +14,9 @@ export interface Env {
   // Legacy agent token (external AI agents)
   AGENT_API_TOKEN: string;
   VECTOR_PROVIDER?: string; // "d1" | "vectorize" | "upstash" — defaults to "d1"
+  // Upstash Vector (required when VECTOR_PROVIDER="upstash")
+  UPSTASH_VECTOR_REST_URL?: string;
+  UPSTASH_VECTOR_REST_TOKEN?: string;
 }
 
 export interface Variables {

@@ -71,7 +71,7 @@ wrangler secret put AGENT_API_TOKEN
 pnpm deploy:api
 
 # Deploy web SPA to Pages
-cd packages/web
+cd apps/web
 pnpm build
 wrangler pages deploy dist
 ```
@@ -86,6 +86,11 @@ wrangler pages deploy dist
 ## Project Structure
 
 ```
+apps/
+  web/          Vite + React SPA
+    src/
+      components/   7 UI components
+      lib/          Typed API client
 packages/
   shared/       Shared types (Item, Tag, ChatMessage, API types)
   api/          Hono API on CF Workers
@@ -95,10 +100,6 @@ packages/
       db/           Drizzle schema + raw SQL
       ai/           Workers AI providers
       middleware/    Auth + CORS
-  web/          Vite + React SPA
-    src/
-      components/   7 UI components
-      lib/          Typed API client
 ```
 
 ## API

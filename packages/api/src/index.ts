@@ -40,10 +40,11 @@ app.get("/api/auth/extension/callback", async (c) => {
   return c.redirect(dest.toString());
 });
 
-// Better Auth — handles /api/auth/signin/google, /api/auth/callback/google,
-// /api/auth/session, /api/auth/signout, etc.
+// Better Auth — handles /api/auth/sign-in/social, /api/auth/callback/google,
+// /api/auth/get-session, /api/auth/sign-out, etc.
 // Note: /api/auth/extension/callback above must stay before this wildcard.
-app.on(["GET", "POST", "DELETE"], "/api/auth/**", (c) => {
+// Hono uses `/*` (not `/**`) to match all sub-paths.
+app.on(["GET", "POST", "DELETE"], "/api/auth/*", (c) => {
   return c.get("auth").handler(c.req.raw);
 });
 

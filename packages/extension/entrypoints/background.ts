@@ -78,7 +78,8 @@ export default defineBackground(() => {
 
   async function startOAuth() {
     const callbackURL = `${API_BASE}/api/auth/extension/callback`;
-    const signInUrl = new URL(`${API_BASE}/api/auth/signin/google`);
+    const signInUrl = new URL(`${API_BASE}/api/auth/sign-in/social`);
+    signInUrl.searchParams.set("provider", "google");
     signInUrl.searchParams.set("callbackURL", callbackURL);
 
     const tab = await browser.tabs.create({ url: signInUrl.toString(), active: true });

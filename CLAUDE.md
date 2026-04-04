@@ -22,7 +22,7 @@ pnpm migrate
 
 - **Monorepo** — pnpm workspaces with 4 packages: `api`, `web`, `shared`, `extension`
 - **Hono on CF Workers** (`packages/api`) — API routes + Workflows
-- **Vite + React SPA on CF Pages** (`packages/web`) — all views (cards, list, graph, reading list, chat, detail panel)
+- **Vite + React SPA on CF Pages** (`apps/web`) — all views (cards, list, graph, reading list, chat, detail panel)
 - **D1** (SQLite) — items, tags, item_tags
 - **Vectorize** — 768d cosine similarity vector search
 - **Workers AI** — EmbeddingGemma for embeddings, Kimi K2.5 for LLM (tagging, summaries, chat)
@@ -44,6 +44,11 @@ pnpm migrate
 ## Project Structure
 
 ```
+apps/
+  web/src/
+    App.tsx           — main SPA (state, filters, views)
+    components/       — SearchBar, ItemCard, Sidebar, ChatPanel, DetailPanel, EmptyState, GraphView
+    lib/api.ts        — typed API client
 packages/
   shared/src/         — domain types, API request/response types, shared utilities
   api/src/
@@ -54,10 +59,6 @@ packages/
     ai/               — CF Workers AI providers (embedding, LLM)
     middleware/        — auth (bearer token), CORS
     lib/              — youtube transcript fetcher
-  web/src/
-    App.tsx           — main SPA (state, filters, views)
-    components/       — SearchBar, ItemCard, Sidebar, ChatPanel, DetailPanel, EmptyState, GraphView
-    lib/api.ts        — typed API client
   extension/
     wxt.config.ts     — WXT config + manifest metadata
     entrypoints/

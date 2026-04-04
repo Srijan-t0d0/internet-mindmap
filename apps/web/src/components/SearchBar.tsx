@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Kbd, KbdGroup } from "./ui/kbd";
 
 interface SearchBarProps {
   value: string;
@@ -64,16 +65,13 @@ export default function SearchBar({ value, onChange, onSearch }: SearchBarProps)
           outline: "none",
         }}
       />
-      <div
-        className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] px-1.5 py-0.5 rounded transition-opacity duration-150"
-        style={{
-          color: "var(--color-text-muted)",
-          border: "1px solid var(--color-border)",
-          opacity: focused ? 0 : 0.7,
-        }}
+      <KbdGroup
+        className="absolute right-3 top-1/2 -translate-y-1/2 transition-opacity duration-150"
+        style={{ opacity: focused ? 0 : 0.7 }}
       >
-        <kbd>K</kbd>
-      </div>
+        <Kbd>⌘</Kbd>
+        <Kbd>K</Kbd>
+      </KbdGroup>
     </div>
   );
 }

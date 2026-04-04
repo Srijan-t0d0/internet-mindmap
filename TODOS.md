@@ -58,7 +58,7 @@
 
 **Why:** The extension now extracts rich metadata via Defuddle (author, published date, description, site name) and stores it in D1. This data exists but isn't shown anywhere in the UI. Displaying it makes saved items more scannable and useful.
 
-**Context:** New columns added to items table: `author`, `published`, `description`, `site_name`. The API items endpoint already returns all columns. Just need to add display in `packages/web/src/components/ItemCard.tsx` (author + date below title) and `packages/web/src/components/DetailPanel.tsx` (full metadata section). ~20 lines of JSX.
+**Context:** New columns added to items table: `author`, `published`, `description`, `site_name`. The API items endpoint already returns all columns. Just need to add display in `apps/web/src/components/ItemCard.tsx` (author + date below title) and `apps/web/src/components/DetailPanel.tsx` (full metadata section). ~20 lines of JSX.
 
 **Effort:** S
 **Priority:** P2
@@ -70,7 +70,7 @@
 
 **Why:** The side panel is scaffolded as an empty shell. Searching your KB from any page without leaving the tab is the obvious next high-value feature for the extension.
 
-**Context:** Side panel scaffold exists at `packages/extension/entrypoints/sidepanel/`. Would need: search input, results list (reuse ItemCard patterns from web package), semantic search via the existing API. Consider reusing components or patterns from `packages/web/src/components/`.
+**Context:** Side panel scaffold exists at `packages/extension/entrypoints/sidepanel/`. Would need: search input, results list (reuse ItemCard patterns from web package), semantic search via the existing API. Consider reusing components or patterns from `apps/web/src/components/`.
 
 **Effort:** M
 **Priority:** P2
@@ -94,7 +94,7 @@
 
 **Why:** The web SPA currently computes graph links by comparing every item's tags to every other item's tags (O(n^2)). A 200-node cap prevents performance degradation, but as the knowledge base grows past 500 items, the graph should load pre-computed relationships from the API instead.
 
-**Context:** The `buildGraphData()` function in `packages/web/src/lib/graph-data.ts` does the O(n^2) comparison. A new API endpoint (e.g., `GET /api/graph`) could compute links server-side using D1 SQL joins on the `item_tags` table, which would be O(n) with proper indexing. The client would receive nodes + links directly.
+**Context:** The `buildGraphData()` function in `apps/web/src/lib/graph-data.ts` does the O(n^2) comparison. A new API endpoint (e.g., `GET /api/graph`) could compute links server-side using D1 SQL joins on the `item_tags` table, which would be O(n) with proper indexing. The client would receive nodes + links directly.
 
 **Effort:** M
 **Priority:** P3
@@ -106,7 +106,7 @@
 
 **Why:** Current polling calls `fetchItems()` every 5 seconds, returning ALL items. With 500+ items, that's unnecessary bandwidth. Only the processing items need status checks during polling.
 
-**Context:** The polling logic is in `packages/web/src/App.tsx`. The `fetchItems` function already accepts a `status` filter parameter. During polling, call `fetchItems({ status: "pending" })` and merge the results into the existing items state instead of replacing the full list.
+**Context:** The polling logic is in `apps/web/src/App.tsx`. The `fetchItems` function already accepts a `status` filter parameter. During polling, call `fetchItems({ status: "pending" })` and merge the results into the existing items state instead of replacing the full list.
 
 **Effort:** S
 **Priority:** P2

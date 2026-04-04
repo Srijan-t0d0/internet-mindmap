@@ -23,7 +23,7 @@ This is a pnpm monorepo with three packages:
 
 - **`packages/shared`** — TypeScript types shared between API and web
 - **`packages/api`** — Hono API on Cloudflare Workers
-- **`packages/web`** — Vite + React SPA for Cloudflare Pages
+- **`apps/web`** — Vite + React SPA for Cloudflare Pages
 
 ## Type Checking
 
@@ -74,5 +74,5 @@ pnpm --filter @internet-mindmap/web build
 pnpm deploy:api
 
 # Web SPA
-cd packages/web && pnpm build && wrangler pages deploy dist
+cd apps/web && pnpm build && wrangler pages deploy dist
 ```

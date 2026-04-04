@@ -4,10 +4,11 @@ compatibility_date = "2026-03-01"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-# Better Auth baseURL — MUST be the web app URL (Next.js), not the Worker URL.
+# Better Auth baseURL — the web app origin (Next.js), NOT the Worker URL.
 # OAuth callbacks are routed through the Next.js proxy (/api/auth/*), so the
 # callback URL sent to Google must be the Next.js origin. This also ensures
 # session cookies are set on the web app domain, not the Worker domain.
+# Note: Better Auth's getBaseURL() auto-appends basePath ("/api/auth").
 BETTER_AUTH_URL = "http://localhost:3030"
 # Web app URL — used for post-auth redirects and trusted origins.
 APP_BASE_URL = "http://localhost:3030"

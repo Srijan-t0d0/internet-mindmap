@@ -7,7 +7,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@internet-mindmap/shared": path.resolve(__dirname, "../shared/src"),
+      "@internet-mindmap/shared": path.resolve(__dirname, "../../packages/shared/src"),
     },
   },
 });
