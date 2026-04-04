@@ -22,6 +22,9 @@ npm-debug.log*
 .env
 .env*.local
 
+# wrangler local dev secrets (never commit)
+.dev.vars
+
 # extension env (API base URL only, no secrets)
 !packages/extension/.env
 !packages/extension/.env.production

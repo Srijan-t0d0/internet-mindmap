@@ -2,12 +2,12 @@ import { Hono } from "hono";
 import { drizzle } from "drizzle-orm/d1";
 import { sql, desc } from "drizzle-orm";
 import type { Env } from "../bindings";
-import { auth } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
 import * as schema from "../db/schema";
 
 const app = new Hono<{ Bindings: Env }>();
 
-app.get("/", auth("extension", "agent"), async (c) => {
+app.get("/", requireAuth, async (c) => {
   const db = drizzle(c.env.DB);
 
   const result = await db

@@ -2,14 +2,14 @@ import { Hono } from "hono";
 import { drizzle } from "drizzle-orm/d1";
 import { eq, inArray } from "drizzle-orm";
 import type { Env } from "../bindings";
-import { auth } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
 import { CloudflareEmbeddingProvider } from "../ai/embeddings/cloudflare";
 import { createVectorStore } from "../vector-store";
 import * as schema from "../db/schema";
 
 const app = new Hono<{ Bindings: Env }>();
 
-app.post("/search", auth("agent"), async (c) => {
+app.post("/search", requireAuth, async (c) => {
   const body = await c.req.json<{
     query: string;
     limit?: number;

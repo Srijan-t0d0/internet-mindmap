@@ -2,6 +2,12 @@ name = "internet-mindmap-api"
 main = "src/index.ts"
 compatibility_date = "2026-03-01"
 
+[vars]
+# API Worker URL — used as Better Auth's baseURL. Must be the Worker's own URL.
+BETTER_AUTH_URL = "http://localhost:8787"
+# Web app URL — used for post-auth redirects and trusted origins.
+APP_BASE_URL = "http://localhost:5173"
+
 [[d1_databases]]
 binding = "DB"
 database_name = "internet-mindmap"

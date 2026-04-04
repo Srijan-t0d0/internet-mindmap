@@ -1,33 +1,32 @@
-import { Context, Next } from "hono";
-import type { Env } from "../bindings";
+import { createMiddleware } from "hono/factory";
+import type { Env, Variables } from "../bindings";
 
-type AllowedRole = "extension" | "agent";
+/**
+ * Validates session (cookie or Bearer token) via the Better Auth instance
+ * already stored on context by the global middleware in index.ts.
+ * Also accepts the legacy AGENT_API_TOKEN bearer for backward compat.
+ */
+export const requireAuth = createMiddleware<{
+  Bindings: Env;
+  Variables: Variables;
+}>(async (c, next) => {
+  // Legacy agent token — keeps existing AI agent integrations working
+  const authHeader = c.req.header("Authorization");
+  if (
+    authHeader?.startsWith("Bearer ") &&
+    authHeader.slice(7) === c.env.AGENT_API_TOKEN
+  ) {
+    c.set("userId", "agent");
+    return next();
+  }
 
-export function auth(...roles: AllowedRole[]) {
-  return async (c: Context<{ Bindings: Env }>, next: Next) => {
-    const header = c.req.header("Authorization");
-    if (!header?.startsWith("Bearer ")) {
-      return c.json({ error: "Missing or invalid Authorization header" }, 401);
-    }
+  // Reuse the auth instance created once per request in index.ts
+  const session = await c.get("auth").api.getSession({ headers: c.req.raw.headers });
 
-    const token = header.slice(7);
-    const extToken = c.env.EXTENSION_API_TOKEN;
-    const agentToken = c.env.AGENT_API_TOKEN;
+  if (!session) {
+    return c.json({ error: "Unauthorized" }, 401);
+  }
 
-    const isExtension = token === extToken;
-    const isAgent = token === agentToken;
-
-    if (!isExtension && !isAgent) {
-      return c.json({ error: "Invalid token" }, 401);
-    }
-
-    if (roles.includes("extension") && isExtension) {
-      return next();
-    }
-    if (roles.includes("agent") && isAgent) {
-      return next();
-    }
-
-    return c.json({ error: "Insufficient permissions" }, 403);
-  };
-}
+  c.set("userId", session.user.id);
+  return next();
+});

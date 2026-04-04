@@ -2,14 +2,14 @@ import { Hono } from "hono";
 import { drizzle } from "drizzle-orm/d1";
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import type { Env } from "../bindings";
-import { auth } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
 import { createVectorStore } from "../vector-store";
 import * as schema from "../db/schema";
 
 const app = new Hono<{ Bindings: Env }>();
 
 // GET /api/items — list with filters + pagination
-app.get("/", auth("extension", "agent"), async (c) => {
+app.get("/", requireAuth, async (c) => {
   const limit = Math.min(parseInt(c.req.query("limit") || "50"), 100);
   const offset = parseInt(c.req.query("offset") || "0");
   const sourceType = c.req.query("source_type");
@@ -99,7 +99,7 @@ app.get("/", auth("extension", "agent"), async (c) => {
 });
 
 // GET /api/items/:id
-app.get("/:id", auth("extension", "agent"), async (c) => {
+app.get("/:id", requireAuth, async (c) => {
   const id = c.req.param("id")!;
   const db = drizzle(c.env.DB);
 
@@ -140,7 +140,7 @@ app.get("/:id", auth("extension", "agent"), async (c) => {
 });
 
 // PATCH /api/items/:id — update item
-app.patch("/:id", auth("extension", "agent"), async (c) => {
+app.patch("/:id", requireAuth, async (c) => {
   const id = c.req.param("id")!;
   const body = await c.req.json<{ is_read?: boolean; title?: string }>();
   const db = drizzle(c.env.DB);
@@ -173,7 +173,7 @@ app.patch("/:id", auth("extension", "agent"), async (c) => {
 });
 
 // DELETE /api/items/:id
-app.delete("/:id", auth("extension", "agent"), async (c) => {
+app.delete("/:id", requireAuth, async (c) => {
   const id = c.req.param("id")!;
   const db = drizzle(c.env.DB);
 
@@ -198,7 +198,7 @@ app.delete("/:id", auth("extension", "agent"), async (c) => {
 });
 
 // POST /api/items/:id — retry failed item
-app.post("/:id", auth("extension", "agent"), async (c) => {
+app.post("/:id", requireAuth, async (c) => {
   const id = c.req.param("id")!;
   const db = drizzle(c.env.DB);
 

@@ -1,10 +1,10 @@
 import type { SaveRequest, SaveResponse } from "@internet-mindmap/shared";
-import { getApiToken } from "./storage";
+import { getApiKey } from "./storage";
 
 export async function saveItem(
   data: SaveRequest
 ): Promise<SaveResponse> {
-  const token = await getApiToken();
+  const token = await getApiKey();
   if (!token) {
     throw new Error("API token not configured. Open the extension popup to set it.");
   }

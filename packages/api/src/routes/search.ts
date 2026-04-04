@@ -2,14 +2,14 @@ import { Hono } from "hono";
 import { drizzle } from "drizzle-orm/d1";
 import { eq, sql, and, inArray } from "drizzle-orm";
 import type { Env } from "../bindings";
-import { auth } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
 import { CloudflareEmbeddingProvider } from "../ai/embeddings/cloudflare";
 import { createVectorStore } from "../vector-store";
 import * as schema from "../db/schema";
 
 const app = new Hono<{ Bindings: Env }>();
 
-app.get("/", auth("extension", "agent"), async (c) => {
+app.get("/", requireAuth, async (c) => {
   const query = c.req.query("q");
   const limit = Math.min(parseInt(c.req.query("limit") || "20"), 50);
   const sourceType = c.req.query("source_type");

@@ -4,7 +4,7 @@ import { inArray } from "drizzle-orm";
 import { streamText } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
 import type { Env } from "../bindings";
-import { auth } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
 import { CloudflareEmbeddingProvider } from "../ai/embeddings/cloudflare";
 import { createVectorStore } from "../vector-store";
 import { buildChatMessages } from "../ai/llm/prompts";
@@ -14,7 +14,7 @@ const LLM_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8";
 
 const app = new Hono<{ Bindings: Env }>();
 
-app.post("/", auth("extension", "agent"), async (c) => {
+app.post("/", requireAuth, async (c) => {
   const body = await c.req.json<{ messages?: { role: string; content: string; parts?: { type: string; text?: string }[] }[] }>();
 
   // AI SDK v6 sends { messages } with parts array — extract the last user message text

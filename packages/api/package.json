@@ -7,11 +7,14 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "migrate": "wrangler d1 execute internet-mindmap --file=src/db/schema.sql"
+    "migrate": "wrangler d1 execute internet-mindmap --file=src/db/schema.sql",
+    "migrate:auth": "wrangler d1 execute internet-mindmap --file=src/db/migrate-add-auth.sql",
+    "migrate:user-id": "wrangler d1 execute internet-mindmap --file=src/db/migrate-add-user-id.sql"
   },
   "dependencies": {
     "@internet-mindmap/shared": "workspace:*",
     "ai": "^6.0.141",
+    "better-auth": "^1.5.6",
     "drizzle-orm": "^0.39.0",
     "hono": "^4.7.0",
     "uuid": "^11.1.0",

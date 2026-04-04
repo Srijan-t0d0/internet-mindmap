@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import type { Tag, ViewMode } from "@internet-mindmap/shared";
 import { SOURCE_TYPES, SOURCE_LABELS, SOURCE_CSS_COLORS } from "../lib/constants";
+import UserMenu from "./UserMenu";
 
 const SOURCE_FILTERS = SOURCE_TYPES
   .filter((key) => key !== "other")
@@ -224,6 +225,11 @@ export default function Sidebar({
           </div>
         )}
       </nav>
+
+      {/* User menu at the bottom */}
+      <div className="px-3 pb-4 pt-2 border-t" style={{ borderColor: "var(--color-border-subtle)" }}>
+        <UserMenu />
+      </div>
     </aside>
   );
 }

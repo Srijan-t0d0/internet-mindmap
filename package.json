@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "dev": "pnpm --filter @internet-mindmap/api --filter @internet-mindmap/web --filter @internet-mindmap/extension --parallel dev",
     "dev:api": "pnpm --filter @internet-mindmap/api dev",
     "dev:web": "pnpm --filter @internet-mindmap/web dev",
     "dev:ext": "pnpm --filter @internet-mindmap/extension dev",

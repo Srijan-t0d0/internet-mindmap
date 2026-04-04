@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import { logger } from "hono/logger";
-import type { Env } from "./bindings";
+import type { Env, Variables } from "./bindings";
 import { corsMiddleware } from "./middleware/cors";
+import { createAuth } from "./lib/auth";
 import saveRoute from "./routes/save";
 import searchRoute from "./routes/search";
 import itemsRoute from "./routes/items";
@@ -12,11 +13,39 @@ import importRoute from "./routes/import";
 
 export { ProcessItemWorkflow } from "./workflows/process-item";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // Global middleware
 app.use(logger());
 app.use("*", corsMiddleware);
+
+// Create one Better Auth instance per request and store it on context.
+// This avoids re-instantiating (and re-connecting to D1) on every middleware
+// call — D1 bindings are per-request, so we can't use a module-level singleton.
+app.use("*", async (c, next) => {
+  c.set("auth", createAuth(c.env));
+  await next();
+});
+
+// Extension OAuth callback — Better Auth completes Google OAuth and sets a
+// session cookie, then redirects here. We read the token and bounce to the
+// web app's /extension-auth page with the token in the URL hash (hash is
+// never sent to the server or stored in browser history).
+// A content script on that page picks it up and stores it in extension storage.
+app.get("/api/auth/extension/callback", async (c) => {
+  const session = await c.get("auth").api.getSession({ headers: c.req.raw.headers });
+
+  const dest = new URL(`${c.env.APP_BASE_URL}/extension-auth`);
+  dest.hash = session ? `token=${session.session.token}` : "error=auth_failed";
+  return c.redirect(dest.toString());
+});
+
+// Better Auth — handles /api/auth/signin/google, /api/auth/callback/google,
+// /api/auth/session, /api/auth/signout, etc.
+// Note: /api/auth/extension/callback above must stay before this wildcard.
+app.on(["GET", "POST", "DELETE"], "/api/auth/**", (c) => {
+  return c.get("auth").handler(c.req.raw);
+});
 
 // Routes
 app.route("/api/save", saveRoute);

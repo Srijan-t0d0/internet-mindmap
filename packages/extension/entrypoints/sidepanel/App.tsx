@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getApiToken } from "../../lib/storage";
+import { getApiKey as getApiToken } from "../../lib/storage";
 
 function App() {
   const [hasToken, setHasToken] = useState(false);

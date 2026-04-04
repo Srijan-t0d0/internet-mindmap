@@ -3,12 +3,12 @@ import { drizzle } from "drizzle-orm/d1";
 import { eq, sql } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import type { Env } from "../bindings";
-import { auth } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
 import * as schema from "../db/schema";
 
 const app = new Hono<{ Bindings: Env }>();
 
-app.post("/", auth("extension", "agent"), async (c) => {
+app.post("/", requireAuth, async (c) => {
   const body = await c.req.json<{
     url: string;
     title: string;

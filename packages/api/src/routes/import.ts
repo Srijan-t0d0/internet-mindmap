@@ -3,7 +3,7 @@ import { drizzle } from "drizzle-orm/d1";
 import { eq } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import type { Env } from "../bindings";
-import { auth } from "../middleware/auth";
+import { requireAuth } from "../middleware/auth";
 import * as schema from "../db/schema";
 
 function parseBookmarksHtml(html: string): { url: string; title: string }[] {
@@ -32,7 +32,7 @@ function detectSourceType(url: string): string {
 
 const app = new Hono<{ Bindings: Env }>();
 
-app.post("/", auth("extension", "agent"), async (c) => {
+app.post("/", requireAuth, async (c) => {
   const body = await c.req.json<{ html: string }>();
   const { html } = body;
 

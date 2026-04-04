@@ -24,6 +24,15 @@ export default defineConfig({
         description: "Save current page to knowledge base",
       },
     },
+    // A stable extension ID is required for Firefox so that the redirect URL
+    // registered with Google Cloud Console doesn't change on every reinstall.
+    // Chrome derives its own stable ID from the CRX signing key.
+    browser_specific_settings: {
+      gecko: {
+        id: "internet-mindmap@extension",
+        strict_min_version: "115.0", // storage.session requires Firefox 115+
+      },
+    },
   }),
   vite: () => ({
     plugins: [tailwindcss() as any],
