@@ -1,3 +1,5 @@
+"use client";
+
 import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import type { Item, Tag, ViewMode } from "@internet-mindmap/shared";
 import Sidebar from "./components/Sidebar";

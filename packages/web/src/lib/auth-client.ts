@@ -1,8 +1,9 @@
 import { createAuthClient } from "better-auth/react";
 
-// In dev, Vite proxies /api → localhost:8787 so baseURL is same-origin.
-// In production, set VITE_API_URL to your Worker URL if not same-origin.
-const baseURL = import.meta.env.VITE_API_URL || window.location.origin;
+// All /api/auth/* calls go through the Next.js route handler proxy (same-origin).
+// We use window.location.origin so the client always points at the right host.
+const baseURL =
+  typeof window !== "undefined" ? window.location.origin : "";
 
 export const authClient = createAuthClient({
   baseURL,

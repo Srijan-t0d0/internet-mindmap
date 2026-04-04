@@ -10,7 +10,8 @@ import type {
   ImportResponse,
 } from "@internet-mindmap/shared";
 
-const API_BASE = import.meta.env.VITE_API_URL || "";
+// All /api/* calls go through the Next.js route handler proxy (same-origin).
+const API_BASE = "";
 
 function get(url: string) {
   return fetch(url, { credentials: "include" });

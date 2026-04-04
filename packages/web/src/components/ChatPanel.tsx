@@ -1,12 +1,16 @@
+"use client";
+
 import { useState, useRef, useEffect } from "react";
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 
-const API_BASE = import.meta.env.VITE_API_URL || "";
+// All /api/* calls go through the Next.js route handler proxy (same-origin).
+const API_BASE = "";
 
 function getHeaders(): Record<string, string> {
   const h: Record<string, string> = {};
-  const token = import.meta.env.VITE_API_TOKEN;
+  // Optional dev auth token — set NEXT_PUBLIC_API_TOKEN in .env.local
+  const token = process.env.NEXT_PUBLIC_API_TOKEN;
   if (token) h["Authorization"] = `Bearer ${token}`;
   return h;
 }

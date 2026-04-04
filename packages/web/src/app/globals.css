@@ -27,9 +27,10 @@
   --shadow-panel: -4px 0 24px rgba(0, 0, 0, 0.06);
   --shadow-search-focus: 0 0 0 3px rgba(196, 149, 106, 0.15);
 
-  --font-heading: "Libre Baskerville", Georgia, serif;
-  --font-body: "Inter", system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", monospace;
+  /* Font families — resolved from next/font/google CSS variables injected on <html> */
+  --font-heading: var(--font-baskerville), Georgia, serif;
+  --font-body: var(--font-inter), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), monospace;
 }
 
 /* Base */
