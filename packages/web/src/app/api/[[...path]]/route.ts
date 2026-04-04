@@ -25,14 +25,31 @@ async function proxy(req: NextRequest): Promise<Response> {
   const { pathname, search } = new URL(req.url);
   const target = `${WORKER_URL}${pathname}${search}`;
 
-  return fetch(target, {
+  // Forward all headers except `host` — the host header must match the
+  // target server (the Worker), not the Next.js app. Sending the wrong host
+  // can confuse Wrangler and cause Better Auth origin validation to fail.
+  const forwardHeaders = new Headers(req.headers);
+  forwardHeaders.delete("host");
+
+  const workerRes = await fetch(target, {
     method: req.method,
-    headers: req.headers,
+    headers: forwardHeaders,
     body: req.body,
     // Required for streaming request bodies (e.g. chat SSE)
     // @ts-expect-error -- duplex is not yet in the TS fetch types
     duplex: "half",
   });
+
+  // Re-construct the response so Next.js doesn't swallow set-cookie headers.
+  // Better Auth sets HttpOnly session cookies on the auth callback — these
+  // must reach the browser, or the user will never be considered signed in.
+  const res = new Response(workerRes.body, {
+    status: workerRes.status,
+    statusText: workerRes.statusText,
+    headers: workerRes.headers,
+  });
+
+  return res;
 }
 
 export const GET = proxy;

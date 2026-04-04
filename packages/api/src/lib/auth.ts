@@ -29,8 +29,9 @@ export function createAuth(env: Env) {
       updateAge: 60 * 60 * 24 * 7,   // extend once a week on active use
     },
     trustedOrigins: [
-      "http://localhost:5173",
-      "http://localhost:4173",
+      "http://localhost:3030", // Next.js dev server
+      "http://localhost:5173", // Vite dev server (legacy)
+      "http://localhost:4173", // Vite preview (legacy)
       ...(env.APP_BASE_URL ? [env.APP_BASE_URL] : []),
       ...(env.BETTER_AUTH_URL ? [env.BETTER_AUTH_URL] : []),
     ],

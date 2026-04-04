@@ -12,6 +12,7 @@ const inter = Inter({
 const libreBaskerville = Libre_Baskerville({
   subsets: ["latin"],
   weight: ["400", "700"],
+  style: ["normal", "italic"],
   variable: "--font-baskerville",
   display: "swap",
 });
@@ -26,6 +27,9 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "Internet Mindmap",
   description: "Personal knowledge graph for the web",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

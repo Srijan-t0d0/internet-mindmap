@@ -7,8 +7,8 @@ dist/
 .output/
 .wxt/
 
-# next.js (legacy)
-/.next/
+# next.js
+.next/
 /out/
 
 # misc

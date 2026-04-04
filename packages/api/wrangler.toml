@@ -1,12 +1,16 @@
 name = "internet-mindmap-api"
 main = "src/index.ts"
 compatibility_date = "2026-03-01"
+compatibility_flags = ["nodejs_compat"]
 
 [vars]
-# API Worker URL — used as Better Auth's baseURL. Must be the Worker's own URL.
-BETTER_AUTH_URL = "http://localhost:8787"
+# Better Auth baseURL — MUST be the web app URL (Next.js), not the Worker URL.
+# OAuth callbacks are routed through the Next.js proxy (/api/auth/*), so the
+# callback URL sent to Google must be the Next.js origin. This also ensures
+# session cookies are set on the web app domain, not the Worker domain.
+BETTER_AUTH_URL = "http://localhost:3030"
 # Web app URL — used for post-auth redirects and trusted origins.
-APP_BASE_URL = "http://localhost:5173"
+APP_BASE_URL = "http://localhost:3030"
 
 [[d1_databases]]
 binding = "DB"
