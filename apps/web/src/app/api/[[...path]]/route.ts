@@ -43,10 +43,19 @@ async function proxy(req: NextRequest): Promise<Response> {
   // Re-construct the response so Next.js doesn't swallow set-cookie headers.
   // Better Auth sets HttpOnly session cookies on the auth callback — these
   // must reach the browser, or the user will never be considered signed in.
+  //
+  // Strip content-encoding/content-length: fetch() auto-decompresses the body,
+  // so the body is already plain text. If we forward the original headers,
+  // Vercel may double-compress or the browser sees a mismatch and fails with
+  // ERR_CONTENT_DECODING_FAILED.
+  const headers = new Headers(workerRes.headers);
+  headers.delete("content-encoding");
+  headers.delete("content-length");
+
   const res = new Response(workerRes.body, {
     status: workerRes.status,
     statusText: workerRes.statusText,
-    headers: workerRes.headers,
+    headers,
   });
 
   return res;
