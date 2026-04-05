@@ -1,19 +1,8 @@
 @import "tailwindcss";
+@source "../../../ui/src/**/*.{ts,tsx}";
+@import "@internet-mindmap/ui/theme.css";
 
-@theme {
-  --color-bg-primary: #faf9f6;
-  --color-bg-secondary: #f3f0eb;
-  --color-bg-card: #ffffff;
-  --color-text-primary: #2d2d2d;
-  --color-text-secondary: #6b6b6b;
-  --color-text-muted: #a0a0a0;
-  --color-accent: #c4956a;
-  --color-accent-hover: #b8845a;
-  --color-border: #e8e4de;
-  --color-error: #d94f4f;
-  --color-success: #4a9e6b;
-}
-
+/* Popup-specific overrides */
 body {
   width: 340px;
   min-height: 100px;
@@ -22,27 +11,4 @@ body {
   color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-::selection {
-  background-color: rgba(196, 149, 106, 0.2);
-}
-
-@keyframes fade-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.fade-in {
-  animation: fade-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-@keyframes check-pop {
-  0% { transform: scale(0.8); opacity: 0; }
-  50% { transform: scale(1.1); }
-  100% { transform: scale(1); opacity: 1; }
-}
-
-.check-pop {
-  animation: check-pop 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 }

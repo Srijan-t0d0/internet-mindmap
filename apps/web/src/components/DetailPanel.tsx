@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { Item } from "@internet-mindmap/shared";
-import { SOURCE_CSS_COLORS, SOURCE_LABELS } from "../lib/constants";
+import { SOURCE_CSS_COLORS, SOURCE_LABELS } from "@internet-mindmap/ui";
 import AlertDialog from "./ui/AlertDialog";
 
 interface DetailPanelProps {

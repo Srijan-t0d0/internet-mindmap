@@ -1,47 +1,12 @@
 @import "tailwindcss";
+@source "../../../ui/src/**/*.{ts,tsx}";
+@import "@internet-mindmap/ui/theme.css";
 
-@theme {
-  --color-bg-primary: #faf9f6;
-  --color-bg-secondary: #f3f0eb;
-  --color-bg-card: #ffffff;
-  --color-text-primary: #2d2d2d;
-  --color-text-secondary: #6b6b6b;
-  --color-text-muted: #a0a0a0;
-  --color-accent: #c4956a;
-  --color-accent-hover: #b8845a;
-  --color-border: #e8e4de;
-  --color-error: #d94f4f;
-  --color-success: #4a9e6b;
-}
-
+/* Side panel-specific overrides */
 body {
   font-family: "Inter", system-ui, sans-serif;
   background-color: var(--color-bg-primary);
   color: var(--color-text-primary);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-}
-
-::selection {
-  background-color: rgba(196, 149, 106, 0.2);
-}
-
-::-webkit-scrollbar {
-  width: 5px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 3px;
-}
-
-@keyframes fade-in {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-.fade-in {
-  animation: fade-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
 }

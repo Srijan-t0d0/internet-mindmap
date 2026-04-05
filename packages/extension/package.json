@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "wxt",
     "dev:firefox": "wxt -b firefox",
-    "build": "wxt build",
+    "build": "wxt build && rm -rf chrome-mv3-build && cp -r .output/chrome-mv3 chrome-mv3-build",
     "build:firefox": "wxt build -b firefox",
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@internet-mindmap/shared": "workspace:*",
+    "@internet-mindmap/ui": "workspace:*",
     "defuddle": "^0.14.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

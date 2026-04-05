@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 import type { Tag, ViewMode } from "@internet-mindmap/shared";
-import { SOURCE_TYPES, SOURCE_LABELS, SOURCE_CSS_COLORS } from "../lib/constants";
+import { SOURCE_TYPES, SOURCE_LABELS, SOURCE_CSS_COLORS } from "@internet-mindmap/ui";
 import UserMenu from "./UserMenu";
 
 const SOURCE_FILTERS = SOURCE_TYPES

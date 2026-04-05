@@ -16,7 +16,9 @@
     "plugins": [{ "name": "next" }],
     "paths": {
       "@/*": ["./src/*"],
-      "@internet-mindmap/shared": ["../../packages/shared/src"]
+      "@internet-mindmap/shared": ["../../packages/shared/src"],
+      "@internet-mindmap/ui": ["../../packages/ui/src"],
+      "@internet-mindmap/ui/*": ["../../packages/ui/src/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

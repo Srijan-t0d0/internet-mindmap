@@ -10,18 +10,25 @@ export default defineConfig({
       "Save any web page to your personal knowledge graph with Command+Shift+S",
     permissions: [
       "activeTab",
+      "scripting",
       "notifications",
       "storage",
       ...(browser === "chrome" ? ["sidePanel"] : ([] as string[])),
     ],
-    host_permissions: ["<all_urls>"],
     commands: {
       "save-page": {
         suggested_key: {
           default: "Ctrl+Shift+S",
           mac: "Command+Shift+S",
         },
-        description: "Save current page to knowledge base",
+        description: "Quick save current page",
+      },
+      "save-page-with-notes": {
+        suggested_key: {
+          default: "Ctrl+Shift+X",
+          mac: "Command+Shift+X",
+        },
+        description: "Save current page with notes",
       },
     },
     // A stable extension ID is required for Firefox so that the redirect URL
@@ -39,5 +46,6 @@ export default defineConfig({
   }),
   alias: {
     "@internet-mindmap/shared": resolve(__dirname, "../shared/src"),
+    "@internet-mindmap/ui": resolve(__dirname, "../ui/src"),
   },
 });

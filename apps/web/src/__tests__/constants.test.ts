@@ -4,7 +4,7 @@ import {
   SOURCE_LABELS,
   SOURCE_CSS_COLORS,
   SOURCE_HEX_COLORS,
-} from "../lib/constants";
+} from "@internet-mindmap/ui";
 
 describe("SOURCE constants completeness", () => {
   it("every SOURCE_TYPE has a label", () => {

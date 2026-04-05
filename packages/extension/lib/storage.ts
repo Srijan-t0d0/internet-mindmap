@@ -1,5 +1,6 @@
 // Long-lived session token — persists across browser restarts (storage.local)
 const TOKEN_KEY = "internet-mindmap-api-key";
+const EMAIL_KEY = "internet-mindmap-user-email";
 
 export async function getApiKey(): Promise<string | null> {
   const result = await browser.storage.local.get(TOKEN_KEY);
@@ -10,8 +11,17 @@ export async function setApiKey(key: string): Promise<void> {
   if (key) {
     await browser.storage.local.set({ [TOKEN_KEY]: key });
   } else {
-    await browser.storage.local.remove(TOKEN_KEY);
+    await browser.storage.local.remove([TOKEN_KEY, EMAIL_KEY]);
   }
+}
+
+export async function getUserEmail(): Promise<string | null> {
+  const result = await browser.storage.local.get(EMAIL_KEY);
+  return (result[EMAIL_KEY] as string) ?? null;
+}
+
+export async function setUserEmail(email: string): Promise<void> {
+  await browser.storage.local.set({ [EMAIL_KEY]: email });
 }
 
 // Ephemeral OAuth state — only lives for the duration of the sign-in flow.

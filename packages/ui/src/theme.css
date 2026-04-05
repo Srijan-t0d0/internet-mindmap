@@ -1,0 +1,181 @@
+/* Internet Mindmap — shared design tokens
+ * Single source of truth for colours, shadows, and animations.
+ * Consumers import this alongside `@import "tailwindcss"`.
+ */
+
+@theme {
+  /* Backgrounds */
+  --color-bg-primary: #faf9f6;
+  --color-bg-secondary: #f3f0eb;
+  --color-bg-card: #ffffff;
+
+  /* Text */
+  --color-text-primary: #2d2d2d;
+  --color-text-secondary: #6b6b6b;
+  --color-text-muted: #a0a0a0;
+
+  /* Accent */
+  --color-accent: #c4956a;
+  --color-accent-hover: #b8845a;
+  --color-accent-subtle: rgba(196, 149, 106, 0.08);
+
+  /* Borders */
+  --color-border: #e8e4de;
+  --color-border-subtle: #f0ece6;
+
+  /* Semantic */
+  --color-error: #d94f4f;
+  --color-success: #4a9e6b;
+
+  /* Source type indicators */
+  --color-source-youtube: #ff0000;
+  --color-source-reddit: #ff4500;
+  --color-source-twitter: #1d1d1f;
+  --color-source-github: #8b5cf6;
+  --color-source-hackernews: #ff6600;
+  --color-source-substack: #ff6719;
+  --color-source-blog: #4a9eff;
+
+  /* Shadows */
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.03);
+  --shadow-card-hover: 0 8px 24px rgba(0, 0, 0, 0.07), 0 0 0 1px rgba(0, 0, 0, 0.03);
+  --shadow-panel: -4px 0 24px rgba(0, 0, 0, 0.06);
+  --shadow-search-focus: 0 0 0 3px rgba(196, 149, 106, 0.15);
+
+  /* Fonts — next/font injects --font-inter etc. on the web app;
+   * in the extension these fall through to the generic fallbacks. */
+  --font-heading: var(--font-baskerville), Georgia, serif;
+  --font-body: var(--font-inter), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), monospace;
+}
+
+/* ── shadcn/ui design tokens (mapped to our palette) ───────────────────── */
+
+:root {
+  --radius: 0.625rem;
+  --background: #faf9f6;
+  --foreground: #2d2d2d;
+  --card: #ffffff;
+  --card-foreground: #2d2d2d;
+  --popover: #ffffff;
+  --popover-foreground: #2d2d2d;
+  --primary: #c4956a;
+  --primary-foreground: #ffffff;
+  --secondary: #f3f0eb;
+  --secondary-foreground: #2d2d2d;
+  --muted: #f3f0eb;
+  --muted-foreground: #6b6b6b;
+  --accent: #f3f0eb;
+  --accent-foreground: #2d2d2d;
+  --destructive: #d94f4f;
+  --destructive-foreground: #ffffff;
+  --border: #e8e4de;
+  --input: #e8e4de;
+  --ring: #c4956a;
+  --sidebar-background: #faf9f6;
+  --sidebar-foreground: #2d2d2d;
+  --sidebar-primary: #c4956a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f3f0eb;
+  --sidebar-accent-foreground: #2d2d2d;
+  --sidebar-border: #e8e4de;
+  --sidebar-ring: #c4956a;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent-shadcn: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border-shadcn: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar-background: var(--sidebar-background);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --radius-sm: calc(var(--radius) * 0.75);
+  --radius-md: calc(var(--radius) * 0.875);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.5);
+}
+
+/* ── Shared base ───────────────────────────────────────────────────────── */
+
+::selection {
+  background-color: rgba(196, 149, 106, 0.2);
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
+
+/* ── Shared animations ─────────────────────────────────────────────────── */
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.fade-in {
+  animation: fade-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--color-bg-secondary) 25%, var(--color-bg-primary) 50%, var(--color-bg-secondary) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.card-enter {
+  animation: card-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.panel-slide-in {
+  animation: slide-in-right 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes list-row-in {
+  from { opacity: 0; transform: translateX(-4px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.list-row-enter {
+  animation: list-row-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes check-pop {
+  0% { transform: scale(0.8); opacity: 0; }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); opacity: 1; }
+}
+.check-pop {
+  animation: check-pop 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}

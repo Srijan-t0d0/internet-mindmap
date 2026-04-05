@@ -12,6 +12,12 @@ export function showSaveWidget(data: SaveRequest) {
   host.style.cssText = "position:fixed;top:16px;right:16px;z-index:2147483647;";
   const shadow = host.attachShadow({ mode: "closed" });
 
+  // Keyboard isolation — stop all keyboard events from leaking through the
+  // shadow boundary to the host page (e.g. spacebar pausing YouTube).
+  for (const evt of ["keydown", "keyup", "keypress"] as const) {
+    shadow.addEventListener(evt, (e) => e.stopPropagation());
+  }
+
   shadow.innerHTML = `
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -54,6 +60,15 @@ export function showSaveWidget(data: SaveRequest) {
         -webkit-box-orient: vertical;
         flex: 1;
       }
+      .btn-close {
+        width: 24px; height: 24px;
+        display: flex; align-items: center; justify-content: center;
+        border: none; background: transparent;
+        color: #a0a0a0; font-size: 18px; line-height: 1;
+        cursor: pointer; border-radius: 4px; flex-shrink: 0;
+        transition: all 0.15s;
+      }
+      .btn-close:hover { background: #f3f0eb; color: #2d2d2d; }
       .body { padding: 16px; }
       .label {
         font-size: 11px;
@@ -136,6 +151,7 @@ export function showSaveWidget(data: SaveRequest) {
           </svg>
         </div>
         <div class="title">${escapeHtml(data.title)}</div>
+        <button class="btn-close" id="close" aria-label="Close">&times;</button>
       </div>
       <div class="body">
         <div class="label">Why are you saving this? (optional)</div>
@@ -153,7 +169,10 @@ export function showSaveWidget(data: SaveRequest) {
   const textarea = shadow.getElementById("notes") as HTMLTextAreaElement;
   const saveBtn = shadow.getElementById("save") as HTMLButtonElement;
   const skipBtn = shadow.getElementById("skip") as HTMLButtonElement;
+  const closeBtn = shadow.getElementById("close") as HTMLButtonElement;
   const panel = shadow.querySelector(".panel") as HTMLElement;
+
+  closeBtn.addEventListener("click", () => host.remove());
 
   // Focus textarea after animation
   setTimeout(() => textarea.focus(), 50);

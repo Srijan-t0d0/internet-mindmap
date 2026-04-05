@@ -1,39 +1,9 @@
 @import "tailwindcss";
+@source "../../../../packages/ui/src/**/*.{ts,tsx}";
+@import "@internet-mindmap/ui/theme.css";
 
-@theme {
-  --color-bg-primary: #faf9f6;
-  --color-bg-secondary: #f3f0eb;
-  --color-bg-card: #ffffff;
-  --color-text-primary: #2d2d2d;
-  --color-text-secondary: #6b6b6b;
-  --color-text-muted: #a0a0a0;
-  --color-accent: #c4956a;
-  --color-accent-hover: #b8845a;
-  --color-accent-subtle: rgba(196, 149, 106, 0.08);
-  --color-border: #e8e4de;
-  --color-border-subtle: #f0ece6;
-  --color-error: #d94f4f;
-  --color-success: #4a9e6b;
-  --color-source-youtube: #ff0000;
-  --color-source-reddit: #ff4500;
-  --color-source-twitter: #1d1d1f;
-  --color-source-github: #8b5cf6;
-  --color-source-hackernews: #ff6600;
-  --color-source-substack: #ff6719;
-  --color-source-blog: #4a9eff;
+/* ── Web-app-specific base ─────────────────────────────────────────────── */
 
-  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.04), 0 0 0 1px rgba(0, 0, 0, 0.03);
-  --shadow-card-hover: 0 8px 24px rgba(0, 0, 0, 0.07), 0 0 0 1px rgba(0, 0, 0, 0.03);
-  --shadow-panel: -4px 0 24px rgba(0, 0, 0, 0.06);
-  --shadow-search-focus: 0 0 0 3px rgba(196, 149, 106, 0.15);
-
-  /* Font families — resolved from next/font/google CSS variables injected on <html> */
-  --font-heading: var(--font-baskerville), Georgia, serif;
-  --font-body: var(--font-inter), system-ui, sans-serif;
-  --font-mono: var(--font-jetbrains), monospace;
-}
-
-/* Base */
 body {
   font-family: var(--font-body);
   color: var(--color-text-primary);
@@ -46,55 +16,19 @@ h1, h2, h3 {
   font-family: var(--font-heading);
 }
 
-::selection {
-  background-color: rgba(196, 149, 106, 0.2);
-}
+/* ── Web-app-specific animations ───────────────────────────────────────── */
 
-/* Scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: var(--color-border);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-muted);
-}
-
-/* Skeleton shimmer */
-@keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-.skeleton {
-  background: linear-gradient(
-    90deg,
-    var(--color-bg-secondary) 25%,
-    var(--color-bg-primary) 50%,
-    var(--color-bg-secondary) 75%
-  );
-  background-size: 200% 100%;
-  animation: shimmer 1.8s ease-in-out infinite;
-}
-
-/* Chat streaming cursor */
 @keyframes blink {
   0%, 50% { opacity: 1; }
   51%, 100% { opacity: 0; }
 }
 
 .streaming-cursor::after {
-  content: "▊";
+  content: "\25CA";
   animation: blink 500ms step-end infinite;
   color: var(--color-accent);
 }
 
-/* Chat bouncing dots */
 @keyframes bounce {
   0%, 80%, 100% { transform: translateY(0); }
   40% { transform: translateY(-6px); }
@@ -105,61 +39,3 @@ h1, h2, h3 {
 }
 .bounce-dot:nth-child(2) { animation-delay: 0.15s; }
 .bounce-dot:nth-child(3) { animation-delay: 0.3s; }
-
-/* Card entrance stagger */
-@keyframes card-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.card-enter {
-  animation: card-in 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-/* Detail panel slide */
-@keyframes slide-in-right {
-  from {
-    opacity: 0;
-    transform: translateX(16px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.panel-slide-in {
-  animation: slide-in-right 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-/* Sidebar fade in */
-@keyframes fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-.fade-in {
-  animation: fade-in 0.3s ease both;
-}
-
-/* List row enter */
-@keyframes list-row-in {
-  from {
-    opacity: 0;
-    transform: translateX(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-.list-row-enter {
-  animation: list-row-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
-}

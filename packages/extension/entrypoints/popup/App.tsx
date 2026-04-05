@@ -1,8 +1,12 @@
-import { useState, useEffect, useRef } from "react";
-import { getApiKey, setApiKey } from "../../lib/storage";
+import { Kbd, KbdGroup } from "@internet-mindmap/ui";
+import { useEffect, useRef, useState } from "react";
+import { getApiKey, getUserEmail, setApiKey } from "../../lib/storage";
+
+const API_BASE = import.meta.env.WXT_API_BASE as string;
 
 function App() {
   const [hasKey, setHasKey] = useState(false);
+  const [email, setEmail] = useState<string | null>(null);
   const [signing, setSigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -10,6 +14,7 @@ function App() {
 
   useEffect(() => {
     getApiKey().then((k) => { if (k) setHasKey(true); });
+    getUserEmail().then((e) => { if (e) setEmail(e); });
 
     // Listen for the content script completing auth in the background tab
     const onMessage = (msg: unknown) => {
@@ -78,7 +83,16 @@ function App() {
     setError(null);
   }
 
-  const shortcut = navigator.platform.includes("Mac") ? "\u2318\u21e7S" : "Ctrl+Shift+S";
+  const isMac = navigator.platform.includes("Mac");
+  const quickKeys = isMac ? ["\u2318", "\u21e7", "S"] : ["Ctrl", "Shift", "S"];
+  const notesKeys = isMac ? ["\u2318", "\u21e7", "X"] : ["Ctrl", "Shift", "X"];
+
+  function redactEmail(addr: string): string {
+    const [local, domain] = addr.split("@");
+    if (!domain) return addr;
+    const visible = local.length <= 2 ? local : local[0] + "•".repeat(local.length - 2) + local[local.length - 1];
+    return `${visible}@${domain}`;
+  }
 
   return (
     <div className="p-5 fade-in">
@@ -102,23 +116,47 @@ function App() {
       {hasKey && (
         <>
           {success ? (
-            <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg mb-4 check-pop" style={{ backgroundColor: "rgba(74,158,107,0.06)", border: "1px solid rgba(74,158,107,0.12)" }}>
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg mb-3 check-pop" style={{ backgroundColor: "rgba(74,158,107,0.06)", border: "1px solid rgba(74,158,107,0.12)" }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--color-success)" }}><polyline points="20 6 9 17 4 12" /></svg>
               <span className="text-xs font-medium" style={{ color: "var(--color-success)" }}>Signed in with Google</span>
             </div>
           ) : (
-            <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg mb-4" style={{ backgroundColor: "rgba(74,158,107,0.06)", border: "1px solid rgba(74,158,107,0.12)" }}>
+            <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg mb-3" style={{ backgroundColor: "rgba(74,158,107,0.06)", border: "1px solid rgba(74,158,107,0.12)" }}>
               <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: "var(--color-success)" }} />
-              <span className="text-xs" style={{ color: "var(--color-success)" }}>Connected</span>
-              <span className="text-xs ml-auto" style={{ color: "var(--color-text-muted)" }}>
-                <kbd className="font-medium" style={{ color: "var(--color-text-secondary)" }}>{shortcut}</kbd> to save
+              <span className="text-xs" style={{ color: "var(--color-success)" }}>
+                {email ? redactEmail(email) : "Connected"}
               </span>
             </div>
           )}
-          <button onClick={handleSignOut} className="w-full py-2 text-sm font-medium rounded-lg transition-all duration-150 hover:scale-[0.99]"
-            style={{ backgroundColor: "var(--color-bg-card)", border: "1px solid var(--color-border)", color: "var(--color-text-secondary)" }}>
-            Sign out
-          </button>
+
+          {/* Shortcuts */}
+          <div className="rounded-lg px-3 mb-3" style={{ backgroundColor: "var(--color-bg-secondary)" }}>
+            <div className="flex items-center justify-between py-2.5">
+              <span className="text-[11px] font-medium" style={{ color: "var(--color-text-secondary)" }}>Quick save</span>
+              <KbdGroup className="gap-1">
+                <Kbd className="h-5 min-w-5 px-1 text-[11px]">{quickKeys[0]}</Kbd><Kbd className="h-5 min-w-5 px-1 text-[11px]">{quickKeys[1]}</Kbd><Kbd className="h-5 min-w-5 px-1 text-[11px]">{quickKeys[2]}</Kbd>
+              </KbdGroup>
+            </div>
+            <div className="flex items-center justify-between py-2.5" style={{ borderTop: "1px solid var(--color-border-subtle)" }}>
+              <span className="text-[11px] font-medium" style={{ color: "var(--color-text-secondary)" }}>Save with notes</span>
+              <KbdGroup className="gap-1">
+                <Kbd className="h-5 min-w-5 px-1 text-[11px]">{notesKeys[0]}</Kbd><Kbd className="h-5 min-w-5 px-1 text-[11px]">{notesKeys[1]}</Kbd><Kbd className="h-5 min-w-5 px-1 text-[11px]">{notesKeys[2]}</Kbd>
+              </KbdGroup>
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-2">
+            <a href={API_BASE} target="_blank" rel="noopener noreferrer"
+              className="flex-1 py-2 text-sm font-medium rounded-lg text-center transition-all duration-150 hover:scale-[0.99]"
+              style={{ backgroundColor: "var(--color-accent)", color: "#fff", textDecoration: "none" }}>
+              Dashboard
+            </a>
+            <button onClick={handleSignOut} className="flex-1 py-2 text-sm font-medium rounded-lg transition-all duration-150 hover:scale-[0.99]"
+              style={{ backgroundColor: "var(--color-bg-card)", border: "1px solid var(--color-border)", color: "var(--color-text-secondary)" }}>
+              Sign out
+            </button>
+          </div>
         </>
       )}
 

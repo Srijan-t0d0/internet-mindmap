@@ -9,9 +9,9 @@ compatibility_flags = ["nodejs_compat"]
 # callback URL sent to Google must be the Next.js origin. This also ensures
 # session cookies are set on the web app domain, not the Worker domain.
 # Note: Better Auth's getBaseURL() auto-appends basePath ("/api/auth").
-BETTER_AUTH_URL = "http://localhost:3030"
+BETTER_AUTH_URL = "https://internet-mindmap.vercel.app"
 # Web app URL — used for post-auth redirects and trusted origins.
-APP_BASE_URL = "http://localhost:3030"
+APP_BASE_URL = "https://internet-mindmap.vercel.app"
 
 [[d1_databases]]
 binding = "DB"

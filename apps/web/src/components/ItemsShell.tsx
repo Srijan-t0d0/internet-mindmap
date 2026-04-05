@@ -11,7 +11,7 @@ import DetailPanel from "./DetailPanel";
 import EmptyState from "./EmptyState";
 const GraphView = lazy(() => import("./GraphView"));
 import { retryItem, updateItem, deleteItem } from "../lib/api";
-import { SOURCE_CSS_COLORS } from "../lib/constants";
+import { SOURCE_CSS_COLORS } from "@internet-mindmap/ui";
 
 interface ItemsShellProps {
   initialItems: Item[];

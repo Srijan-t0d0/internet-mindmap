@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ForceGraph2D from "react-force-graph-2d";
 import type { Item } from "@internet-mindmap/shared";
-import { SOURCE_HEX_COLORS, SOURCE_LABELS } from "../lib/constants";
+import { SOURCE_HEX_COLORS, SOURCE_LABELS } from "@internet-mindmap/ui";
 import { buildGraphData, MAX_GRAPH_NODES } from "../lib/graph-data";
 
 interface GraphViewProps {

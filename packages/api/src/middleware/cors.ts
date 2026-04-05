@@ -10,6 +10,7 @@ export const corsMiddleware = cors({
     if (allowed.includes(origin)) return origin;
     if (/\.pages\.dev$/.test(origin)) return origin;
     if (/internetmindmap\.com$/.test(origin)) return origin;
+    if (/internet-mindmap.*\.vercel\.app$/.test(origin)) return origin;
     return null;
   },
   allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
