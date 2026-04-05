@@ -16,7 +16,7 @@ APP_BASE_URL = "http://localhost:3030"
 [[d1_databases]]
 binding = "DB"
 database_name = "internet-mindmap"
-database_id = "placeholder-create-with-wrangler"
+database_id = "ef4d0900-8385-4849-838c-989a8276f593"
 
 [[vectorize]]
 binding = "VECTORIZE"

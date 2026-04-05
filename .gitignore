@@ -33,3 +33,4 @@ npm-debug.log*
 *.tsbuildinfo
 
 # lock files are committed — pnpm-lock.yaml
+.vercel
