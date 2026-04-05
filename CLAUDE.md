@@ -11,7 +11,7 @@ pnpm install
 # Start the API (Hono on CF Workers, local via wrangler dev)
 pnpm dev:api
 
-# Start the web SPA (Vite + React, separate terminal)
+# Start the web app (Next.js, separate terminal)
 pnpm dev:web
 
 # Run D1 migrations
@@ -22,18 +22,19 @@ pnpm migrate
 
 - **Monorepo** — pnpm workspaces with 4 packages: `api`, `web`, `shared`, `extension`
 - **Hono on CF Workers** (`packages/api`) — API routes + Workflows
-- **Vite + React SPA on CF Pages** (`apps/web`) — all views (cards, list, graph, reading list, chat, detail panel)
+- **Next.js on Vercel** (`apps/web`) — App Router with Server Components, all views (cards, list, graph, reading list, chat, detail panel)
 - **D1** (SQLite) — items, tags, item_tags
 - **Vectorize** — 768d cosine similarity vector search
 - **Workers AI** — EmbeddingGemma for embeddings, Kimi K2.5 for LLM (tagging, summaries, chat)
 - **Cloudflare Workflows** — background processing pipeline (replaces pg-boss)
 - **Drizzle ORM** — type-safe D1 queries
+- **Better Auth** — session-based auth with Google OAuth (web app), bearer tokens (extension/agents)
 - **Browser Extension** (`packages/extension`) — Chrome MV3 via WXT, React popup + side panel, TypeScript, Readability extraction
 
 ## Key Commands
 
 - `pnpm dev:api` — Hono dev server (wrangler dev, port 8787)
-- `pnpm dev:web` — Vite dev server (port 5173, proxies /api to 8787)
+- `pnpm dev:web` — Next.js dev server (port 3000)
 - `pnpm dev:ext` — WXT dev server (opens Chrome with extension loaded)
 - `pnpm migrate` — run D1 schema migrations
 - `pnpm build` — build all packages
@@ -46,9 +47,14 @@ pnpm migrate
 ```
 apps/
   web/src/
-    App.tsx           — main SPA (state, filters, views)
-    components/       — SearchBar, ItemCard, Sidebar, ChatPanel, DetailPanel, EmptyState, GraphView
-    lib/api.ts        — typed API client
+    app/page.tsx      — Server Component (auth gate, data fetching, URL-driven filters)
+    components/
+      ItemsShell.tsx  — Client shell (interactivity, optimistic mutations, polling)
+      SignInButton.tsx — Client component (Google OAuth sign-in)
+      SearchBar, ItemCard, Sidebar, ChatPanel, DetailPanel, EmptyState, GraphView
+    lib/
+      api.ts          — typed API client (client-side, cookie-based)
+      data.ts         — server-side data fetching (cookie forwarding to Worker)
 packages/
   shared/src/         — domain types, API request/response types, shared utilities
   api/src/
@@ -57,7 +63,7 @@ packages/
     workflows/        — ProcessItemWorkflow (5-step pipeline)
     db/               — Drizzle schema + raw SQL
     ai/               — CF Workers AI providers (embedding, LLM)
-    middleware/        — auth (bearer token), CORS
+    middleware/        — auth (bearer token + Better Auth session), CORS
     lib/              — youtube transcript fetcher
   extension/
     wxt.config.ts     — WXT config + manifest metadata
@@ -85,10 +91,10 @@ packages/
 
 ## Auth
 
-Two static bearer tokens as Worker secrets:
-- `EXTENSION_API_TOKEN` — for the browser extension
-- `AGENT_API_TOKEN` — for external AI agents
-- Web SPA: behind Cloudflare Access (zero-trust)
+- **Web app**: Better Auth with Google OAuth — session cookies forwarded from Next.js server to CF Worker
+- **Browser extension**: `EXTENSION_API_TOKEN` bearer token (Worker secret)
+- **External AI agents**: `AGENT_API_TOKEN` bearer token (Worker secret)
+- `API_WORKER_URL` env var required on Vercel (defaults to `http://localhost:8787` for local dev)
 
 ## CF Bindings
 
