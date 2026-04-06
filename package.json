@@ -11,7 +11,9 @@
     "build:ext": "pnpm --filter @internet-mindmap/extension build",
     "typecheck": "pnpm -r typecheck",
     "deploy:api": "pnpm --filter @internet-mindmap/api deploy",
-    "migrate": "pnpm --filter @internet-mindmap/api migrate"
+    "db:generate": "pnpm --filter @internet-mindmap/api db:generate",
+    "db:migrate": "pnpm --filter @internet-mindmap/api db:migrate",
+    "db:migrate:remote": "pnpm --filter @internet-mindmap/api db:migrate:remote"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

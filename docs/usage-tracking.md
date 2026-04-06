@@ -60,5 +60,11 @@ Future types (just start recording — no migration needed):
 ## Running the Migration
 
 ```bash
-wrangler d1 execute internet-mindmap --file=packages/api/src/db/migrate-add-usage.sql
+# Local
+pnpm db:migrate
+
+# Production
+pnpm db:migrate:remote
 ```
+
+Note: The baseline migration (0000) covers all pre-existing tables. For an existing database, mark it as applied first, then apply 0001+.

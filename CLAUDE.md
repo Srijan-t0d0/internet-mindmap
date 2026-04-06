@@ -14,8 +14,8 @@ pnpm dev:api
 # Start the web app (Next.js, separate terminal)
 pnpm dev:web
 
-# Run D1 migrations
-pnpm migrate
+# Run D1 migrations (local)
+pnpm db:migrate
 ```
 
 ## Architecture
@@ -36,7 +36,9 @@ pnpm migrate
 - `pnpm dev:api` — Hono dev server (wrangler dev, port 8787)
 - `pnpm dev:web` — Next.js dev server (port 3000)
 - `pnpm dev:ext` — WXT dev server (opens Chrome with extension loaded)
-- `pnpm migrate` — run D1 schema migrations
+- `pnpm db:generate` — generate Drizzle migration from schema changes
+- `pnpm db:migrate` — apply D1 migrations (local)
+- `pnpm db:migrate:remote` — apply D1 migrations (remote/production)
 - `pnpm build` — build all packages
 - `pnpm build:ext` — build extension (output: `packages/extension/.output/chrome-mv3/`)
 - `pnpm typecheck` — typecheck all packages

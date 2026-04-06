@@ -7,9 +7,9 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "migrate": "wrangler d1 execute internet-mindmap --file=src/db/schema.sql",
-    "migrate:auth": "wrangler d1 execute internet-mindmap --file=src/db/migrate-add-auth.sql",
-    "migrate:user-id": "wrangler d1 execute internet-mindmap --file=src/db/migrate-add-user-id.sql"
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "wrangler d1 migrations apply internet-mindmap --local",
+    "db:migrate:remote": "wrangler d1 migrations apply internet-mindmap --remote"
   },
   "dependencies": {
     "@internet-mindmap/shared": "workspace:*",
@@ -27,6 +27,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250327.0",
     "@types/node": "^25.5.0",
+    "drizzle-kit": "^0.31.10",
     "typescript": "^5.7.0",
     "wrangler": "^4.14.0"
   }

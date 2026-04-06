@@ -17,6 +17,7 @@ APP_BASE_URL = "https://internet-mindmap.vercel.app"
 binding = "DB"
 database_name = "internet-mindmap"
 database_id = "ef4d0900-8385-4849-838c-989a8276f593"
+migrations_dir = "drizzle"
 
 [[vectorize]]
 binding = "VECTORIZE"
