@@ -49,6 +49,7 @@ export interface TagsAndSummary {
   tags: string[];
   summary: string;
   keyPassages: string[];
+  usage?: { inputTokens: number; outputTokens: number };
 }
 
 export interface LLMProvider {
@@ -128,4 +129,20 @@ export interface ImportResponse {
   total_found: number;
   capped: boolean;
   message: string;
+}
+
+// ── Usage tracking ─────────────────────────────────────────────────────────
+
+export interface UsageBreakdown {
+  event_type: string;
+  count: number;
+  input_tokens: number;
+  output_tokens: number;
+  total_tokens: number;
+}
+
+export interface UsageStats {
+  total_events: number;
+  total_tokens: number;
+  breakdown: UsageBreakdown[];
 }

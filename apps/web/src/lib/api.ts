@@ -8,6 +8,7 @@ import type {
   SaveResponse,
   ImportRequest,
   ImportResponse,
+  UsageStats,
 } from "@internet-mindmap/shared";
 
 // All /api/* calls go through the Next.js route handler proxy (same-origin).
@@ -96,4 +97,10 @@ export async function updateItem(
 export async function deleteItem(id: string): Promise<void> {
   const res = await del(`${API_BASE}/api/items/${id}`);
   if (!res.ok) throw new Error("Failed to delete item");
+}
+
+export async function fetchUsage(): Promise<UsageStats> {
+  const res = await get(`${API_BASE}/api/usage`);
+  if (!res.ok) throw new Error("Failed to fetch usage");
+  return res.json();
 }

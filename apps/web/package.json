@@ -13,6 +13,7 @@
     "@ai-sdk/react": "^3.0.143",
     "@internet-mindmap/shared": "workspace:*",
     "@internet-mindmap/ui": "workspace:*",
+    "@tanstack/react-query": "^5.96.2",
     "ai": "^6.0.141",
     "better-auth": "^1.5.6",
     "next": "^15.3.0",

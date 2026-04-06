@@ -103,6 +103,29 @@ export const verification = sqliteTable("verification", {
   updatedAt: integer("updatedAt", { mode: "timestamp" }),
 });
 
+// ── Usage tracking ─────────────────────────────────────────────────────────
+
+export const usageEvents = sqliteTable(
+  "usage_events",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    eventType: text("event_type").notNull(),
+    source: text("source"),
+    model: text("model"),
+    inputTokens: integer("input_tokens").notNull().default(0),
+    outputTokens: integer("output_tokens").notNull().default(0),
+    totalTokens: integer("total_tokens").notNull().default(0),
+    metadata: text("metadata"),
+    createdAt: text("created_at").notNull().default("(datetime('now'))"),
+  },
+  (table) => [
+    index("usage_events_user_id_idx").on(table.userId),
+    index("usage_events_user_type_idx").on(table.userId, table.eventType),
+    index("usage_events_user_date_idx").on(table.userId, table.createdAt),
+  ]
+);
+
 export const apiKey = sqliteTable("apiKey", {
   id: text("id").primaryKey(),
   name: text("name"),

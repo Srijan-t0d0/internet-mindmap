@@ -30,7 +30,7 @@ export class CloudflareLLMProvider implements LLMProvider {
     const prompt = buildTaggingPrompt(title, content, sourceType, notes);
     const workersai = createWorkersAI({ binding: this.ai });
 
-    const { object } = await generateObject({
+    const { object, usage } = await generateObject({
       model: workersai(LLM_MODEL),
       schema: tagsAndSummarySchema,
       prompt,
@@ -43,6 +43,10 @@ export class CloudflareLLMProvider implements LLMProvider {
       tags: object.tags.slice(0, 7),
       summary: object.summary,
       keyPassages: object.keyPassages.slice(0, 5),
+      usage: {
+        inputTokens: usage?.inputTokens ?? 0,
+        outputTokens: usage?.outputTokens ?? 0,
+      },
     };
   }
 }

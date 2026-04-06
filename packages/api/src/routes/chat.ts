@@ -8,6 +8,7 @@ import { requireAuth } from "../middleware/auth";
 import { CloudflareEmbeddingProvider } from "../ai/embeddings/cloudflare";
 import { createVectorStore } from "../vector-store";
 import { buildChatMessages } from "../ai/llm/prompts";
+import { recordUsageEvent, estimateEmbeddingTokens } from "../lib/usage";
 import * as schema from "../db/schema";
 
 const LLM_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8";
@@ -35,9 +36,21 @@ app.post("/", requireAuth, async (c) => {
 
   console.log("[chat] question:", question);
 
+  const userId = c.get("userId");
+
   const embedder = new CloudflareEmbeddingProvider(c.env.AI);
   const queryEmbedding = await embedder.embed(question);
   console.log("[chat] embedding generated, dimensions:", queryEmbedding.length);
+
+  // Record embedding event (fire-and-forget)
+  recordUsageEvent(c.env.DB, {
+    userId,
+    eventType: "embedding",
+    source: "web",
+    model: "@cf/baai/bge-base-en-v1.5",
+    inputTokens: estimateEmbeddingTokens(question),
+    metadata: { source: "chat-query" },
+  }).catch(() => {});
 
   // Find top 5 relevant items
   const vectors = createVectorStore(c.env);
@@ -83,6 +96,17 @@ app.post("/", requireAuth, async (c) => {
     system,
     messages: [{ role: "user", content: userMessage }],
     maxOutputTokens: 2048,
+    onFinish({ usage }) {
+      recordUsageEvent(c.env.DB, {
+        userId,
+        eventType: "chat",
+        source: "web",
+        model: LLM_MODEL,
+        inputTokens: usage?.inputTokens ?? 0,
+        outputTokens: usage?.outputTokens ?? 0,
+        metadata: { question: question.slice(0, 200) },
+      }).catch(() => {});
+    },
     onError({ error }) {
       console.error("[chat streamText]", error);
     },

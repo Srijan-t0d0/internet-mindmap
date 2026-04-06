@@ -4,6 +4,7 @@ import { eq, sql } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import type { Env } from "../bindings";
 import { requireAuth } from "../middleware/auth";
+import { recordUsageEvent } from "../lib/usage";
 import * as schema from "../db/schema";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -84,10 +85,20 @@ app.post("/", requireAuth, async (c) => {
     });
   }
 
+  const userId = c.get("userId");
+
+  // Record save event (fire-and-forget)
+  recordUsageEvent(c.env.DB, {
+    userId,
+    eventType: "save",
+    source: "extension",
+    metadata: { itemId, url, isUpdate: !!existing },
+  }).catch(() => {});
+
   // Trigger workflow (use unique instance ID to avoid conflict with prior runs)
   await c.env.PROCESS_ITEM.create({
     id: `${itemId}-${Date.now()}`,
-    params: { itemId, url, source_type },
+    params: { itemId, url, source_type, userId },
   });
 
   return c.json(

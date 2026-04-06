@@ -10,6 +10,7 @@ import chatRoute from "./routes/chat";
 import tagsRoute from "./routes/tags";
 import agentRoute from "./routes/agent";
 import importRoute from "./routes/import";
+import usageRoute from "./routes/usage";
 
 export { ProcessItemWorkflow } from "./workflows/process-item";
 
@@ -56,6 +57,7 @@ app.route("/api/chat", chatRoute);
 app.route("/api/tags", tagsRoute);
 app.route("/api/agent", agentRoute);
 app.route("/api/import", importRoute);
+app.route("/api/usage", usageRoute);
 
 // Health check
 app.get("/", (c) => c.json({ status: "ok", service: "internet-mindmap-api" }));

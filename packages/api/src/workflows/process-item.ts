@@ -11,12 +11,14 @@ import { CloudflareEmbeddingProvider } from "../ai/embeddings/cloudflare";
 import { CloudflareLLMProvider } from "../ai/llm/cloudflare";
 import { createVectorStore } from "../vector-store";
 import { fetchYouTubeTranscript } from "../lib/youtube";
+import { recordUsageEvent, estimateEmbeddingTokens } from "../lib/usage";
 import type { Env } from "../bindings";
 
 interface ProcessItemParams {
   itemId: string;
   url: string;
   source_type: string;
+  userId?: string;
 }
 
 export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemParams> {
@@ -75,7 +77,20 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
         if (content.notes) parts.push(`User notes: ${content.notes}`);
         if (content.content) parts.push(content.content);
         const textToEmbed = parts.join("\n\n");
-        return await embedder.embed(textToEmbed);
+        const result = await embedder.embed(textToEmbed);
+
+        if (event.payload.userId) {
+          recordUsageEvent(env.DB, {
+            userId: event.payload.userId,
+            eventType: "embedding",
+            source: "workflow",
+            model: "@cf/baai/bge-base-en-v1.5",
+            inputTokens: estimateEmbeddingTokens(textToEmbed),
+            metadata: { itemId, source: "item-processing" },
+          }).catch(() => {});
+        }
+
+        return result;
       });
 
       // Step 4: Generate tags + summary + better title (skip if no content beyond title)
@@ -85,12 +100,26 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
         }
 
         const llm = new CloudflareLLMProvider(env.AI);
-        return await llm.generateTagsAndSummary(
+        const result = await llm.generateTagsAndSummary(
           content.title,
           content.content,
           source_type,
           content.notes || undefined
         );
+
+        if (event.payload.userId) {
+          recordUsageEvent(env.DB, {
+            userId: event.payload.userId,
+            eventType: "tagging",
+            source: "workflow",
+            model: "@cf/qwen/qwen3-30b-a3b-fp8",
+            inputTokens: result.usage?.inputTokens ?? 0,
+            outputTokens: result.usage?.outputTokens ?? 0,
+            metadata: { itemId },
+          }).catch(() => {});
+        }
+
+        return result;
       });
 
       // Step 5: Store results
