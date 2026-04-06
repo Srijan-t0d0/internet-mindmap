@@ -4,7 +4,7 @@ export const items = sqliteTable(
   "items",
   {
     id: text("id").primaryKey(),
-    url: text("url").notNull().unique(),
+    url: text("url").notNull(),
     title: text("title").notNull(),
     sourceType: text("source_type").notNull(),
     rawContent: text("raw_content"),
@@ -22,12 +22,15 @@ export const items = sqliteTable(
     notes: text("notes"),
     createdAt: text("created_at").notNull().default("(datetime('now'))"),
     updatedAt: text("updated_at").notNull().default("(datetime('now'))"),
+    userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
   },
   (table) => [
     index("items_source_type_idx").on(table.sourceType),
     index("items_status_idx").on(table.status),
     index("items_created_at_idx").on(table.createdAt),
     index("items_is_read_idx").on(table.isRead),
+    uniqueIndex("items_user_url_unique").on(table.userId, table.url),
+    index("items_user_id_idx").on(table.userId),
   ]
 );
 

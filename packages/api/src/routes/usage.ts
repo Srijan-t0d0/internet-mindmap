@@ -1,11 +1,10 @@
 import { Hono } from "hono";
-import type { Env } from "../bindings";
-import { requireAuth } from "../middleware/auth";
+import type { Env, Variables } from "../bindings";
 import type { UsageStats, UsageBreakdown } from "@internet-mindmap/shared";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-app.get("/", requireAuth, async (c) => {
+app.get("/", async (c) => {
   const userId = c.get("userId");
   const since = c.req.query("since"); // optional YYYY-MM-DD
 

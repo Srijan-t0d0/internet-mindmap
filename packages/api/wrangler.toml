@@ -12,6 +12,7 @@ compatibility_flags = ["nodejs_compat"]
 BETTER_AUTH_URL = "https://internet-mindmap.vercel.app"
 # Web app URL — used for post-auth redirects and trusted origins.
 APP_BASE_URL = "https://internet-mindmap.vercel.app"
+VECTOR_PROVIDER = "vectorize"
 
 [[d1_databases]]
 binding = "DB"

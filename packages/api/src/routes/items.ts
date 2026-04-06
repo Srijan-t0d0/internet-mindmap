@@ -1,31 +1,41 @@
 import { Hono } from "hono";
 import { drizzle } from "drizzle-orm/d1";
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
-import type { Env } from "../bindings";
-import { requireAuth } from "../middleware/auth";
+import type { Env, Variables } from "../bindings";
 import { createVectorStore } from "../vector-store";
 import * as schema from "../db/schema";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // GET /api/items — list with filters + pagination
-app.get("/", requireAuth, async (c) => {
+app.get("/", async (c) => {
   const limit = Math.min(parseInt(c.req.query("limit") || "50"), 100);
   const offset = parseInt(c.req.query("offset") || "0");
   const sourceType = c.req.query("source_type");
   const tag = c.req.query("tag");
   const status = c.req.query("status");
   const isRead = c.req.query("is_read");
+  const userId = c.get("userId");
 
   const db = drizzle(c.env.DB);
 
   // Build conditions
   const conditions = [];
+  conditions.push(eq(schema.items.userId, userId));
   if (sourceType) conditions.push(eq(schema.items.sourceType, sourceType));
   if (status) conditions.push(eq(schema.items.status, status));
   if (isRead !== null && isRead !== undefined) {
     conditions.push(eq(schema.items.isRead, isRead === "true"));
   }
+
+  if (tag) conditions.push(
+    inArray(schema.items.id,
+      db.select({ id: schema.itemTags.itemId })
+        .from(schema.itemTags)
+        .innerJoin(schema.tags, eq(schema.itemTags.tagId, schema.tags.id))
+        .where(eq(schema.tags.name, tag))
+    )
+  );
 
   const where = conditions.length > 0 ? and(...conditions) : undefined;
 
@@ -68,8 +78,7 @@ app.get("/", requireAuth, async (c) => {
     tagsByItem.set(row.itemId, existing);
   }
 
-  // Filter by tag in-memory (tag filter requires join logic)
-  let items = itemRows.map((item) => ({
+  const items = itemRows.map((item) => ({
     id: item.id,
     url: item.url,
     title: item.title,
@@ -91,22 +100,19 @@ app.get("/", requireAuth, async (c) => {
     updated_at: item.updatedAt,
   }));
 
-  if (tag) {
-    items = items.filter((i) => i.tags.includes(tag));
-  }
-
   return c.json({ items, total, limit, offset });
 });
 
 // GET /api/items/:id
-app.get("/:id", requireAuth, async (c) => {
+app.get("/:id", async (c) => {
   const id = c.req.param("id")!;
+  const userId = c.get("userId");
   const db = drizzle(c.env.DB);
 
   const item = await db
     .select()
     .from(schema.items)
-    .where(eq(schema.items.id, id))
+    .where(and(eq(schema.items.id, id), eq(schema.items.userId, userId)))
     .get();
 
   if (!item) {
@@ -140,8 +146,9 @@ app.get("/:id", requireAuth, async (c) => {
 });
 
 // PATCH /api/items/:id — update item
-app.patch("/:id", requireAuth, async (c) => {
+app.patch("/:id", async (c) => {
   const id = c.req.param("id")!;
+  const userId = c.get("userId");
   const body = await c.req.json<{ is_read?: boolean; title?: string }>();
   const db = drizzle(c.env.DB);
 
@@ -156,7 +163,7 @@ app.patch("/:id", requireAuth, async (c) => {
   const result = await db
     .update(schema.items)
     .set(updates)
-    .where(eq(schema.items.id, id))
+    .where(and(eq(schema.items.id, id), eq(schema.items.userId, userId)))
     .returning();
 
   if (result.length === 0) {
@@ -173,13 +180,14 @@ app.patch("/:id", requireAuth, async (c) => {
 });
 
 // DELETE /api/items/:id
-app.delete("/:id", requireAuth, async (c) => {
+app.delete("/:id", async (c) => {
   const id = c.req.param("id")!;
+  const userId = c.get("userId");
   const db = drizzle(c.env.DB);
 
   const result = await db
     .delete(schema.items)
-    .where(eq(schema.items.id, id))
+    .where(and(eq(schema.items.id, id), eq(schema.items.userId, userId)))
     .returning({ id: schema.items.id });
 
   if (result.length === 0) {
@@ -198,14 +206,15 @@ app.delete("/:id", requireAuth, async (c) => {
 });
 
 // POST /api/items/:id — retry failed item
-app.post("/:id", requireAuth, async (c) => {
+app.post("/:id", async (c) => {
   const id = c.req.param("id")!;
+  const userId = c.get("userId");
   const db = drizzle(c.env.DB);
 
   const item = await db
     .select()
     .from(schema.items)
-    .where(and(eq(schema.items.id, id), eq(schema.items.status, "error")))
+    .where(and(eq(schema.items.id, id), eq(schema.items.status, "error"), eq(schema.items.userId, userId)))
     .get();
 
   if (!item) {
@@ -221,14 +230,11 @@ app.post("/:id", requireAuth, async (c) => {
     })
     .where(eq(schema.items.id, id));
 
-  console.log("[retry] Creating workflow for item:", id);
   const workflowId = `${id}-retry-${Date.now()}`;
   const instance = await c.env.PROCESS_ITEM.create({
     id: workflowId,
-    params: { itemId: id, url: item.url, source_type: item.sourceType },
+    params: { itemId: id, url: item.url, source_type: item.sourceType, userId },
   });
-  console.log("[retry] Workflow instance created:", instance.id);
-
   return c.json({ id, status: "pending", message: "Retry enqueued" });
 });
 

@@ -17,6 +17,9 @@ export interface Env {
   // Upstash Vector (required when VECTOR_PROVIDER="upstash")
   UPSTASH_VECTOR_REST_URL?: string;
   UPSTASH_VECTOR_REST_TOKEN?: string;
+  // Upstash Redis (rate limiting)
+  UPSTASH_REDIS_REST_URL?: string;
+  UPSTASH_REDIS_REST_TOKEN?: string;
 }
 
 export interface Variables {

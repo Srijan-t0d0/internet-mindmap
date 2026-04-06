@@ -1,15 +1,14 @@
 import { Hono } from "hono";
 import { drizzle } from "drizzle-orm/d1";
-import { eq, sql } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
-import type { Env } from "../bindings";
-import { requireAuth } from "../middleware/auth";
+import type { Env, Variables } from "../bindings";
 import { recordUsageEvent } from "../lib/usage";
 import * as schema from "../db/schema";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-app.post("/", requireAuth, async (c) => {
+app.post("/", async (c) => {
   const body = await c.req.json<{
     url: string;
     title: string;
@@ -39,12 +38,13 @@ app.post("/", requireAuth, async (c) => {
   const db = drizzle(c.env.DB);
   const id = uuidv4();
   const now = new Date().toISOString();
+  const userId = c.get("userId");
 
   // Upsert: insert or update on URL conflict
   const existing = await db
     .select({ id: schema.items.id })
     .from(schema.items)
-    .where(eq(schema.items.url, url))
+    .where(and(eq(schema.items.url, url), eq(schema.items.userId, userId)))
     .get();
 
   let itemId: string;
@@ -71,6 +71,7 @@ app.post("/", requireAuth, async (c) => {
     await db.insert(schema.items).values({
       id,
       url,
+      userId,
       title,
       sourceType: source_type,
       rawContent: extractedText || null,
@@ -84,8 +85,6 @@ app.post("/", requireAuth, async (c) => {
       updatedAt: now,
     });
   }
-
-  const userId = c.get("userId");
 
   // Record save event (fire-and-forget)
   recordUsageEvent(c.env.DB, {

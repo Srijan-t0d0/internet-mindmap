@@ -1,19 +1,19 @@
 import { Hono } from "hono";
 import { drizzle } from "drizzle-orm/d1";
 import { eq, sql, and, inArray } from "drizzle-orm";
-import type { Env } from "../bindings";
-import { requireAuth } from "../middleware/auth";
+import type { Env, Variables } from "../bindings";
 import { CloudflareEmbeddingProvider } from "../ai/embeddings/cloudflare";
 import { createVectorStore } from "../vector-store";
 import * as schema from "../db/schema";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-app.get("/", requireAuth, async (c) => {
+app.get("/", async (c) => {
   const query = c.req.query("q");
   const limit = Math.min(parseInt(c.req.query("limit") || "20"), 50);
   const sourceType = c.req.query("source_type");
   const tag = c.req.query("tag");
+  const userId = c.get("userId");
 
   if (!query?.trim()) {
     return c.json({ error: "Query parameter 'q' is required" }, 400);
@@ -30,6 +30,7 @@ app.get("/", requireAuth, async (c) => {
   const vectors = createVectorStore(c.env);
   const filter: Record<string, string> = {};
   if (sourceType) filter.source_type = sourceType;
+  filter.user_id = userId;
 
   const vectorResults = await vectors.query(queryEmbedding, {
     topK: limit,
@@ -48,7 +49,7 @@ app.get("/", requireAuth, async (c) => {
   const matchedItems = await db
     .select()
     .from(schema.items)
-    .where(inArray(schema.items.id, matchIds));
+    .where(and(inArray(schema.items.id, matchIds), eq(schema.items.userId, userId)));
 
   // Fetch tags for matched items
   const itemTagRows = await db

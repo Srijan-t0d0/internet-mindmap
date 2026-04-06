@@ -16,11 +16,11 @@ Runs entirely on Cloudflare — $0/month for personal use.
 | Layer | Technology |
 |-------|-----------|
 | API | Hono on Cloudflare Workers |
-| Web | Vite + React SPA on Cloudflare Pages |
+| Web | Next.js 15 on Vercel |
 | Database | D1 (SQLite) |
 | Vectors | Vectorize (768d, cosine) |
-| Embeddings | Workers AI — EmbeddingGemma 300M |
-| LLM | Workers AI — Kimi K2.5 |
+| Embeddings | Workers AI — @cf/baai/bge-base-en-v1.5 |
+| LLM | Workers AI — @cf/qwen/qwen3-30b-a3b-fp8 |
 | Background jobs | Cloudflare Workflows |
 | ORM | Drizzle |
 | Extension | Chrome MV3 + Readability |
@@ -62,6 +62,8 @@ pnpm migrate
 cd packages/api
 wrangler secret put EXTENSION_API_TOKEN
 wrangler secret put AGENT_API_TOKEN
+wrangler secret put UPSTASH_REDIS_REST_URL
+wrangler secret put UPSTASH_REDIS_REST_TOKEN
 ```
 
 ### 3. Deploy
@@ -87,10 +89,11 @@ wrangler pages deploy dist
 
 ```
 apps/
-  web/          Vite + React SPA
+  web/          Next.js 15 (App Router)
     src/
-      components/   7 UI components
-      lib/          Typed API client
+      app/          Pages, error boundary, 404
+      components/   UI components
+      lib/          Typed API client + server data fetching
 packages/
   shared/       Shared types (Item, Tag, ChatMessage, API types)
   api/          Hono API on CF Workers

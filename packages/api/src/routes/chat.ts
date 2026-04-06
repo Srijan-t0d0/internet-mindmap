@@ -1,10 +1,9 @@
 import { Hono } from "hono";
 import { drizzle } from "drizzle-orm/d1";
-import { inArray } from "drizzle-orm";
+import { inArray, and, eq } from "drizzle-orm";
 import { streamText } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
-import type { Env } from "../bindings";
-import { requireAuth } from "../middleware/auth";
+import type { Env, Variables } from "../bindings";
 import { CloudflareEmbeddingProvider } from "../ai/embeddings/cloudflare";
 import { createVectorStore } from "../vector-store";
 import { buildChatMessages } from "../ai/llm/prompts";
@@ -13,9 +12,9 @@ import * as schema from "../db/schema";
 
 const LLM_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-app.post("/", requireAuth, async (c) => {
+app.post("/", async (c) => {
   const body = await c.req.json<{ messages?: { role: string; content: string; parts?: { type: string; text?: string }[] }[] }>();
 
   // AI SDK v6 sends { messages } with parts array — extract the last user message text
@@ -34,13 +33,10 @@ app.post("/", requireAuth, async (c) => {
     return c.json({ error: "Question too long (max 1000 characters)" }, 400);
   }
 
-  console.log("[chat] question:", question);
-
   const userId = c.get("userId");
 
   const embedder = new CloudflareEmbeddingProvider(c.env.AI);
   const queryEmbedding = await embedder.embed(question);
-  console.log("[chat] embedding generated, dimensions:", queryEmbedding.length);
 
   // Record embedding event (fire-and-forget)
   recordUsageEvent(c.env.DB, {
@@ -54,8 +50,7 @@ app.post("/", requireAuth, async (c) => {
 
   // Find top 5 relevant items
   const vectors = createVectorStore(c.env);
-  const vectorResults = await vectors.query(queryEmbedding, { topK: 5 });
-  console.log("[chat] vector search returned", vectorResults.matches.length, "matches");
+  const vectorResults = await vectors.query(queryEmbedding, { topK: 5, filter: { user_id: userId } });
 
   if (vectorResults.matches.length === 0) {
     return c.json(
@@ -65,7 +60,6 @@ app.post("/", requireAuth, async (c) => {
   }
 
   const matchIds = vectorResults.matches.map((m) => m.id);
-  console.log("[chat] fetching items from D1, ids:", matchIds);
   const db = drizzle(c.env.DB);
 
   const items = await db
@@ -76,8 +70,7 @@ app.post("/", requireAuth, async (c) => {
       summary: schema.items.summary,
     })
     .from(schema.items)
-    .where(inArray(schema.items.id, matchIds));
-  console.log("[chat] fetched", items.length, "items from D1:", items.map((i) => i.title));
+    .where(and(inArray(schema.items.id, matchIds), eq(schema.items.userId, userId)));
 
   const { system, userMessage } = buildChatMessages(
     question,
@@ -87,10 +80,8 @@ app.post("/", requireAuth, async (c) => {
       summary: i.summary || "",
     }))
   );
-  console.log("[chat] built prompt, system length:", system.length, "user message length:", userMessage.length);
 
   const workersai = createWorkersAI({ binding: c.env.AI });
-  console.log("[chat] streaming LLM response with model:", LLM_MODEL);
   const result = streamText({
     model: workersai(LLM_MODEL),
     system,

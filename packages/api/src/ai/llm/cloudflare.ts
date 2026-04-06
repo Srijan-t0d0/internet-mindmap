@@ -36,8 +36,6 @@ export class CloudflareLLMProvider implements LLMProvider {
       prompt,
     });
 
-    console.log("[llm] generated tags:", object.tags, "summary length:", object.summary.length);
-
     return {
       betterTitle: object.betterTitle,
       tags: object.tags.slice(0, 7),

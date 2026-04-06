@@ -24,7 +24,6 @@ interface ProcessItemParams {
 export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemParams> {
   async run(event: WorkflowEvent<ProcessItemParams>, step: WorkflowStep) {
     const { itemId, url, source_type } = event.payload;
-    console.log("[workflow] START processing item:", itemId, url);
     const env = this.env;
     const vectors = createVectorStore(env);
     const db = drizzle(env.DB);
@@ -125,7 +124,6 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
       // Step 5: Store results
       await step.do("store-results", async () => {
         const tagNames = llmResult.tags.slice(0, 7);
-        console.log("[workflow] Upserting vectors, itemId:", itemId, "embedding length:", embedding.length);
         await vectors.upsert([
           {
             id: itemId,
@@ -134,6 +132,7 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
               title: content.title,
               source_type,
               tags: tagNames.join(","),
+              user_id: event.payload.userId || "",
             },
           },
         ]);
@@ -145,6 +144,7 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
           vectorizeId: itemId,
           status: "ready",
           lastError: null,
+          userId: event.payload.userId || null,
           updatedAt: new Date().toISOString(),
         };
         if (llmResult.betterTitle) {

@@ -1,15 +1,16 @@
 import { Hono } from "hono";
 import { drizzle } from "drizzle-orm/d1";
 import { eq, inArray } from "drizzle-orm";
-import type { Env } from "../bindings";
-import { requireAuth } from "../middleware/auth";
+import type { Env, Variables } from "../bindings";
 import { CloudflareEmbeddingProvider } from "../ai/embeddings/cloudflare";
 import { createVectorStore } from "../vector-store";
 import * as schema from "../db/schema";
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-app.post("/search", requireAuth, async (c) => {
+// Agent keeps unscoped access — it uses userId="agent" (not a real user).
+// This is intentional: AI agents search across all saved knowledge.
+app.post("/search", async (c) => {
   const body = await c.req.json<{
     query: string;
     limit?: number;

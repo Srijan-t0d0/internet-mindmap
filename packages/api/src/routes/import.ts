@@ -1,9 +1,8 @@
 import { Hono } from "hono";
 import { drizzle } from "drizzle-orm/d1";
-import { eq } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
-import type { Env } from "../bindings";
-import { requireAuth } from "../middleware/auth";
+import type { Env, Variables } from "../bindings";
 import * as schema from "../db/schema";
 
 function parseBookmarksHtml(html: string): { url: string; title: string }[] {
@@ -30,9 +29,9 @@ function detectSourceType(url: string): string {
   return "blog";
 }
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
-app.post("/", requireAuth, async (c) => {
+app.post("/", async (c) => {
   const body = await c.req.json<{ html: string }>();
   const { html } = body;
 
@@ -53,46 +52,54 @@ app.post("/", requireAuth, async (c) => {
   const capped = bookmarks.length > 500;
 
   const db = drizzle(c.env.DB);
-  let imported = 0;
-  let skipped = 0;
+  const userId = c.get("userId");
 
-  for (const bookmark of batch) {
-    try {
-      const existing = await db
-        .select({ id: schema.items.id })
-        .from(schema.items)
-        .where(eq(schema.items.url, bookmark.url))
-        .get();
+  // Batch duplicate check — single query instead of per-bookmark
+  const batchUrls = batch.map((b) => b.url);
+  const existingRows = await db
+    .select({ url: schema.items.url })
+    .from(schema.items)
+    .where(and(inArray(schema.items.url, batchUrls), eq(schema.items.userId, userId)));
+  const existingUrls = new Set(existingRows.map((r) => r.url));
 
-      if (existing) {
-        skipped++;
-        continue;
-      }
+  const newBookmarks = batch.filter((b) => !existingUrls.has(b.url));
+  const skipped = batch.length - newBookmarks.length;
 
-      const id = uuidv4();
-      const sourceType = detectSourceType(bookmark.url);
-      const now = new Date().toISOString();
+  // Batch insert all new items
+  if (newBookmarks.length > 0) {
+    const now = new Date().toISOString();
+    const newItems = newBookmarks.map((bookmark) => ({
+      id: uuidv4(),
+      url: bookmark.url,
+      title: bookmark.title,
+      sourceType: detectSourceType(bookmark.url),
+      userId,
+      status: "pending" as const,
+      createdAt: now,
+      updatedAt: now,
+    }));
 
-      await db.insert(schema.items).values({
-        id,
-        url: bookmark.url,
-        title: bookmark.title,
-        sourceType,
-        status: "pending",
-        createdAt: now,
-        updatedAt: now,
-      });
+    await db.insert(schema.items).values(newItems);
 
-      await c.env.PROCESS_ITEM.create({
-        id,
-        params: { itemId: id, url: bookmark.url, source_type: sourceType },
-      });
-
-      imported++;
-    } catch {
-      skipped++;
+    // Trigger workflows in batches of 50
+    const workflowBatches = [];
+    for (let i = 0; i < newItems.length; i += 50) {
+      const chunk = newItems.slice(i, i + 50);
+      workflowBatches.push(
+        Promise.all(
+          chunk.map((item) =>
+            c.env.PROCESS_ITEM.create({
+              id: `${item.id}-${Date.now()}`,
+              params: { itemId: item.id, url: item.url, source_type: item.sourceType, userId },
+            })
+          )
+        )
+      );
     }
+    await Promise.all(workflowBatches);
   }
+
+  const imported = newBookmarks.length;
 
   return c.json({
     imported,

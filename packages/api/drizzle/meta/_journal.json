@@ -15,6 +15,13 @@
       "when": 1775496339286,
       "tag": "0001_add_usage_events",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1775501989399,
+      "tag": "0002_natural_madrox",
+      "breakpoints": true
     }
   ]
 }

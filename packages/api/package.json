@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@internet-mindmap/shared": "workspace:*",
+    "@upstash/ratelimit": "^2.0.8",
+    "@upstash/redis": "^1.37.0",
     "@upstash/vector": "^1.2.3",
     "ai": "^6.0.141",
     "better-auth": "^1.5.6",

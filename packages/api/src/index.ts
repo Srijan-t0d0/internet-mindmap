@@ -2,6 +2,8 @@ import { Hono } from "hono";
 import { logger } from "hono/logger";
 import type { Env, Variables } from "./bindings";
 import { corsMiddleware } from "./middleware/cors";
+import { requireAuth } from "./middleware/auth";
+import { createRateLimiter } from "./middleware/rate-limit";
 import { createAuth } from "./lib/auth";
 import saveRoute from "./routes/save";
 import searchRoute from "./routes/search";
@@ -48,6 +50,22 @@ app.get("/api/auth/extension/callback", async (c) => {
 app.on(["GET", "POST", "DELETE"], "/api/auth/*", (c) => {
   return c.get("auth").handler(c.req.raw);
 });
+
+// Auth for all API routes (except /api/auth/*)
+app.use("/api/save/*", requireAuth);
+app.use("/api/search/*", requireAuth);
+app.use("/api/items/*", requireAuth);
+app.use("/api/chat/*", requireAuth);
+app.use("/api/tags/*", requireAuth);
+app.use("/api/agent/*", requireAuth);
+app.use("/api/import/*", requireAuth);
+app.use("/api/usage/*", requireAuth);
+
+// Rate limiters (after auth, so userId is available)
+app.use("/api/chat/*", createRateLimiter(20, "1 m", "chat"));
+app.use("/api/search/*", createRateLimiter(30, "1 m", "search"));
+app.use("/api/save/*", createRateLimiter(10, "1 m", "save"));
+app.use("/api/import/*", createRateLimiter(5, "1 h", "import"));
 
 // Routes
 app.route("/api/save", saveRoute);
