@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, lazy, Suspense } from "react";
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from "react";
 import type { Item, Tag, ViewMode } from "@internet-mindmap/shared";
 import Sidebar from "./Sidebar";
 import SearchBar from "./SearchBar";
@@ -9,7 +9,6 @@ import ChatPanel from "./ChatPanel";
 import DetailPanel from "./DetailPanel";
 import EmptyState from "./EmptyState";
 const GraphView = lazy(() => import("./GraphView"));
-const ChatView = lazy(() => import("./ChatView"));
 import { SOURCE_CSS_COLORS } from "@internet-mindmap/ui";
 
 import { useFilters } from "../hooks/use-filters";
@@ -92,15 +91,28 @@ export default function ItemsShell({
   const deleteMutation = useDeleteItem();
 
   // ---------------------------------------------------------------------------
-  // UI state
+  // UI state — chat and detail panel are independent layers
   // ---------------------------------------------------------------------------
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
-  const [showChat, setShowChat] = useState(true);
+  const [chatOpen, setChatOpen] = useState(false);
 
   // Derive selectedItem from the items cache — no sync useEffect needed
   const selectedItem = selectedItemId
     ? items.find((i) => i.id === selectedItemId) ?? null
     : null;
+
+  // ⌘J keyboard shortcut to toggle chat
+  const toggleChat = useCallback(() => setChatOpen((prev) => !prev), []);
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "j") {
+        e.preventDefault();
+        toggleChat();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [toggleChat]);
 
   // ---------------------------------------------------------------------------
   // Filter handlers — thin wrappers around nuqs setFilters
@@ -151,12 +163,10 @@ export default function ItemsShell({
 
   function handleItemClick(item: Item) {
     setSelectedItemId(item.id);
-    setShowChat(false);
   }
 
   function handleCloseDetail() {
     setSelectedItemId(null);
-    setShowChat(true);
   }
 
   // ---------------------------------------------------------------------------
@@ -173,196 +183,182 @@ export default function ItemsShell({
         onSourceTypeChange={handleSourceTypeChange}
         onTagChange={handleTagChange}
         itemCount={totalItems}
+        chatOpen={chatOpen}
+        onToggleChat={toggleChat}
       />
 
-      {viewMode === "chat" ? (
-        <main className="flex-1 h-screen overflow-hidden" role="main">
-          <Suspense
-            fallback={
-              <div className="flex items-center justify-center h-full">
-                <p className="text-sm" style={{ color: "var(--color-text-muted)" }}>
-                  Loading chat...
-                </p>
-              </div>
-            }
+      <main
+        className="flex-1 h-screen overflow-y-auto overflow-x-hidden p-6"
+        role="main"
+        style={{
+          opacity: isFetching ? 0.6 : 1,
+          transition: "opacity 150ms ease",
+        }}
+      >
+        <div className="max-w-2xl mx-auto mb-8">
+          <SearchBar
+            value={searchInput}
+            onChange={setSearchInput}
+            onSearch={handleSearch}
+          />
+          {isSearching && (
+            <div className="mt-3 flex items-center gap-2 fade-in">
+              <span
+                className="text-xs"
+                style={{ color: "var(--color-text-muted)" }}
+              >
+                Showing results for &quot;{searchQuery}&quot;
+              </span>
+              <button
+                className="text-xs font-medium transition-colors duration-150"
+                style={{ color: "var(--color-accent)" }}
+                onClick={handleClearSearch}
+              >
+                Clear search
+              </button>
+            </div>
+          )}
+        </div>
+
+        {viewMode === "reading-list" && !isSearching && (
+          <h2
+            className="font-[family-name:var(--font-heading)] text-xl font-semibold mb-5"
+            style={{ color: "var(--color-text-primary)" }}
           >
-            <ChatView />
-          </Suspense>
-        </main>
-      ) : (
-        <>
-          <main
-            className="flex-1 h-screen overflow-y-auto overflow-x-hidden p-6"
-            role="main"
-            style={{
-              opacity: isFetching ? 0.6 : 1,
-              transition: "opacity 150ms ease",
-            }}
-          >
-            <div className="max-w-2xl mx-auto mb-8">
-              <SearchBar
-                value={searchInput}
-                onChange={setSearchInput}
-                onSearch={handleSearch}
-              />
-              {isSearching && (
-                <div className="mt-3 flex items-center gap-2 fade-in">
-                  <span
-                    className="text-xs"
+            Reading List
+          </h2>
+        )}
+
+        {items.length === 0 ? (
+          viewMode === "reading-list" ? (
+            <EmptyState
+              title="All caught up"
+              description="You've read everything in your queue. Save more content to keep learning."
+            />
+          ) : isSearching ? (
+            <EmptyState
+              title="No results"
+              description="Try a different search term or broaden your filters."
+              action={{ label: "Clear search", onClick: handleClearSearch }}
+            />
+          ) : (
+            <EmptyState
+              title="Your knowledge base is empty"
+              description="Install the browser extension and press Command+Shift+S on any web page to start building your personal knowledge graph."
+            />
+          )
+        ) : viewMode === "graph" ? (
+          <div className="flex-1" style={{ height: "calc(100vh - 140px)" }}>
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center h-full">
+                  <p
+                    className="text-sm"
                     style={{ color: "var(--color-text-muted)" }}
                   >
-                    Showing results for &quot;{searchQuery}&quot;
-                  </span>
-                  <button
-                    className="text-xs font-medium transition-colors duration-150"
-                    style={{ color: "var(--color-accent)" }}
-                    onClick={handleClearSearch}
-                  >
-                    Clear search
-                  </button>
+                    Loading graph...
+                  </p>
                 </div>
-              )}
-            </div>
-
-            {viewMode === "reading-list" && !isSearching && (
-              <h2
-                className="font-[family-name:var(--font-heading)] text-xl font-semibold mb-5"
-                style={{ color: "var(--color-text-primary)" }}
-              >
-                Reading List
-              </h2>
-            )}
-
-            {items.length === 0 ? (
-              viewMode === "reading-list" ? (
-                <EmptyState
-                  title="All caught up"
-                  description="You've read everything in your queue. Save more content to keep learning."
-                />
-              ) : isSearching ? (
-                <EmptyState
-                  title="No results"
-                  description="Try a different search term or broaden your filters."
-                  action={{ label: "Clear search", onClick: handleClearSearch }}
-                />
-              ) : (
-                <EmptyState
-                  title="Your knowledge base is empty"
-                  description="Install the browser extension and press Command+Shift+S on any web page to start building your personal knowledge graph."
-                />
-              )
-            ) : viewMode === "graph" ? (
-              <div className="flex-1" style={{ height: "calc(100vh - 140px)" }}>
-                <Suspense
-                  fallback={
-                    <div className="flex items-center justify-center h-full">
-                      <p
-                        className="text-sm"
-                        style={{ color: "var(--color-text-muted)" }}
-                      >
-                        Loading graph...
-                      </p>
-                    </div>
-                  }
-                >
-                  <GraphView items={items} onItemClick={handleItemClick} />
-                </Suspense>
-              </div>
-            ) : viewMode === "list" ? (
-              <div className="max-w-3xl mx-auto">
+              }
+            >
+              <GraphView items={items} onItemClick={handleItemClick} />
+            </Suspense>
+          </div>
+        ) : viewMode === "list" ? (
+          <div className="max-w-3xl mx-auto">
+            <div
+              className="rounded-lg overflow-hidden"
+              style={{
+                border: "1px solid var(--color-border-subtle)",
+                backgroundColor: "var(--color-bg-card)",
+              }}
+            >
+              {items.map((item, index) => (
                 <div
-                  className="rounded-lg overflow-hidden"
+                  key={item.id}
+                  className="flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors duration-150 list-row-enter"
                   style={{
-                    border: "1px solid var(--color-border-subtle)",
-                    backgroundColor: "var(--color-bg-card)",
+                    borderTop:
+                      index > 0
+                        ? "1px solid var(--color-border-subtle)"
+                        : "none",
+                    animationDelay: `${index * 30}ms`,
                   }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor =
+                      "var(--color-bg-secondary)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = "transparent";
+                  }}
+                  onClick={() => handleItemClick(item)}
                 >
-                  {items.map((item, index) => (
-                    <div
-                      key={item.id}
-                      className="flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors duration-150 list-row-enter"
-                      style={{
-                        borderTop:
-                          index > 0
-                            ? "1px solid var(--color-border-subtle)"
-                            : "none",
-                        animationDelay: `${index * 30}ms`,
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor =
-                          "var(--color-bg-secondary)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = "transparent";
-                      }}
-                      onClick={() => handleItemClick(item)}
-                    >
-                      <span
-                        className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-                        style={{
-                          backgroundColor: SOURCE_CSS_COLORS[item.source_type],
-                        }}
-                      />
-                      <span
-                        className="text-sm font-medium truncate flex-1"
-                        style={{ color: "var(--color-text-primary)" }}
-                      >
-                        {item.title}
-                      </span>
-                      {item.tags.slice(0, 2).map((tag) => (
-                        <span
-                          key={tag}
-                          className="text-[11px] px-2 py-0.5 rounded-full flex-shrink-0"
-                          style={{
-                            color: "var(--color-text-muted)",
-                            backgroundColor: "var(--color-bg-secondary)",
-                          }}
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                      <span
-                        className="text-[11px] tabular-nums flex-shrink-0"
-                        style={{ color: "var(--color-text-muted)" }}
-                      >
-                        {new Date(item.created_at).toLocaleDateString("en-IN", {
-                          day: "numeric",
-                          month: "short",
-                        })}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-w-5xl mx-auto">
-                {items.map((item, index) => (
-                  <ItemCard
-                    key={item.id}
-                    item={item}
-                    onClick={handleItemClick}
-                    onRetry={handleRetry}
-                    onToggleRead={handleToggleRead}
-                    style={{ animationDelay: `${index * 50}ms` }}
-                    className="card-enter"
+                  <span
+                    className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+                    style={{
+                      backgroundColor: SOURCE_CSS_COLORS[item.source_type],
+                    }}
                   />
-                ))}
-              </div>
-            )}
-          </main>
+                  <span
+                    className="text-sm font-medium truncate flex-1"
+                    style={{ color: "var(--color-text-primary)" }}
+                  >
+                    {item.title}
+                  </span>
+                  {item.tags.slice(0, 2).map((tag) => (
+                    <span
+                      key={tag}
+                      className="text-[11px] px-2 py-0.5 rounded-full flex-shrink-0"
+                      style={{
+                        color: "var(--color-text-muted)",
+                        backgroundColor: "var(--color-bg-secondary)",
+                      }}
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                  <span
+                    className="text-[11px] tabular-nums flex-shrink-0"
+                    style={{ color: "var(--color-text-muted)" }}
+                  >
+                    {new Date(item.created_at).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 max-w-5xl mx-auto">
+            {items.map((item, index) => (
+              <ItemCard
+                key={item.id}
+                item={item}
+                onClick={handleItemClick}
+                onRetry={handleRetry}
+                onToggleRead={handleToggleRead}
+                style={{ animationDelay: `${index * 50}ms` }}
+                className="card-enter"
+              />
+            ))}
+          </div>
+        )}
+      </main>
 
-          {selectedItem ? (
-            <DetailPanel
-              item={selectedItem}
-              onClose={handleCloseDetail}
-              onToggleRead={handleToggleRead}
-              onDelete={handleDelete}
-            />
-          ) : showChat ? (
-            <ChatPanel />
-          ) : null}
-        </>
+      {/* Detail panel — slides in from right as part of layout */}
+      {selectedItem && (
+        <DetailPanel
+          item={selectedItem}
+          onClose={handleCloseDetail}
+          onToggleRead={handleToggleRead}
+          onDelete={handleDelete}
+        />
       )}
+
+      {/* Chat — floating panel, independent of everything else */}
+      <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
     </div>
   );
 }

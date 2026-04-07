@@ -55,8 +55,8 @@ Base unit: 8px
 Card padding:      24px
 Card gap:          16px
 Sidebar width:     240px
-Chat panel width:  320px
-Detail panel:      480px (slide-over, replaces chat)
+Chat panel:        400px × 600px (floating, bottom-right)
+Detail panel:      480px (slide-over, right side)
 Page padding:      24px
 Section gap:       24px
 ```
@@ -92,16 +92,25 @@ Chat streaming: cursor blink 500ms
 
 ## Layout
 
-Three-panel desktop layout (1280px+):
+Two-panel desktop layout (1280px+) with floating chat:
 ```
 ┌──────────┬────────────────────────────────┬──────────────────┐
-│ Sidebar  │ Main Content                   │ Chat Panel       │
-│ 240px    │ flex: 1                        │ 320px            │
-│ fixed    │ (cards / graph / list)         │ (or detail 480px)│
+│ Sidebar  │ Main Content                   │ Detail Panel     │
+│ 240px    │ flex: 1                        │ 480px (optional) │
+│ fixed    │ (cards / graph / list)         │                  │
 └──────────┴────────────────────────────────┴──────────────────┘
+                                        ┌──────────────────────┐
+                                        │ Chat (floating)      │
+                                        │ 400px × 600px        │
+                                        │ bottom-right, z-50   │
+                                        │ toggle: ⌘J / sidebar │
+                                        └──────────────────────┘
 ```
 
-1024px-1279px: Chat panel collapses, opens as overlay on click.
+Chat is a floating panel (not a view mode). It overlays content without
+replacing it — you can browse items, read details, and chat simultaneously.
+
+1024px-1279px: Detail panel opens as overlay.
 Below 1024px: "Desktop recommended" message.
 
 ## Components
@@ -120,11 +129,18 @@ Below 1024px: "Desktop recommended" message.
 - Serif placeholder: "Search your knowledge..."
 - ⌘K shortcut badge, right-aligned, muted.
 
-### Chat Panel
+### Chat Panel (Floating)
+- Fixed position, bottom-right (20px inset), z-50.
+- 400px wide, up to 600px tall, 16px border-radius.
+- Subtle scrim (8% black) behind when open.
+- Open/close: spring animation (scale + translateY), 250ms.
+- Toggle via sidebar "Ask AI" button or ⌘J shortcut.
 - Serif heading: "Ask your knowledge base"
 - User messages: accent background, white text, right-aligned.
 - AI messages: warm grey background, left-aligned.
 - Streaming: three bouncing dots animation.
+- Suggestion pills on empty state (italic serif quotes).
+- Independent of DetailPanel — both can be open simultaneously.
 
 ### Empty States
 - Warm, encouraging tone. Never generic.
@@ -135,6 +151,6 @@ Below 1024px: "Desktop recommended" message.
 
 - All text meets WCAG AA contrast (4.5:1).
 - Focus ring: 2px solid accent colour on all interactive elements.
-- Keyboard: ⌘K search, Esc close panels, Tab through cards, Enter open detail.
+- Keyboard: ⌘K search, ⌘J toggle chat, Esc close panels, Tab through cards, Enter open detail.
 - Screen reader: ARIA landmarks for sidebar, main, chat regions.
 - Touch targets: 44px minimum (even on desktop, for trackpad users).

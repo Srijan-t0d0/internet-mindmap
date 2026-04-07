@@ -46,11 +46,6 @@ const VIEW_ICONS: Record<ViewMode, ReactNode> = {
       <line x1="13.5" y1="13.5" x2="17.5" y2="16.5" />
     </svg>
   ),
-  chat: (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-    </svg>
-  ),
 };
 
 const VIEW_MODES: { key: ViewMode; label: string }[] = [
@@ -58,7 +53,6 @@ const VIEW_MODES: { key: ViewMode; label: string }[] = [
   { key: "list", label: "List" },
   { key: "reading-list", label: "Reading List" },
   { key: "graph", label: "Graph" },
-  { key: "chat", label: "Chat" },
 ];
 
 interface SidebarProps {
@@ -70,6 +64,8 @@ interface SidebarProps {
   onSourceTypeChange: (source: string | null) => void;
   onTagChange: (tag: string | null) => void;
   itemCount: number;
+  chatOpen: boolean;
+  onToggleChat: () => void;
 }
 
 export default function Sidebar({
@@ -81,6 +77,8 @@ export default function Sidebar({
   onSourceTypeChange,
   onTagChange,
   itemCount,
+  chatOpen,
+  onToggleChat,
 }: SidebarProps) {
   return (
     <aside
@@ -234,8 +232,34 @@ export default function Sidebar({
         )}
       </nav>
 
-      {/* User menu at the bottom */}
-      <div className="px-3 pb-4 pt-2 border-t" style={{ borderColor: "var(--color-border-subtle)" }}>
+      {/* Chat toggle + User menu at the bottom */}
+      <div className="px-3 pb-4 pt-2 border-t space-y-1" style={{ borderColor: "var(--color-border-subtle)" }}>
+        <button
+          onClick={onToggleChat}
+          className="w-full text-left text-sm px-3 py-2 rounded-md transition-all duration-150 flex items-center gap-2.5"
+          style={{
+            backgroundColor: chatOpen ? "var(--color-accent-subtle)" : "transparent",
+            color: chatOpen ? "var(--color-accent)" : "var(--color-text-secondary)",
+            fontWeight: chatOpen ? 500 : 400,
+          }}
+          onMouseEnter={(e) => {
+            if (!chatOpen) e.currentTarget.style.backgroundColor = "var(--color-bg-card)";
+          }}
+          onMouseLeave={(e) => {
+            if (!chatOpen) e.currentTarget.style.backgroundColor = "transparent";
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          Ask AI
+          <span
+            className="ml-auto text-[10px] font-mono"
+            style={{ color: "var(--color-text-muted)", opacity: 0.6 }}
+          >
+            {"\u2318"}J
+          </span>
+        </button>
         <UserMenu />
       </div>
     </aside>

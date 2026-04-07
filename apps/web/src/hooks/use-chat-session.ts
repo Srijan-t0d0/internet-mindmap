@@ -23,7 +23,7 @@ const chatTransport = new DefaultChatTransport({
 });
 
 /**
- * Shared chat session logic used by both ChatPanel (sidebar) and ChatView (full-width).
+ * Shared chat session logic used by the floating ChatPanel.
  * Encapsulates useChat setup, input state, confirm-clear flow, and message helpers.
  */
 export function useChatSession() {
