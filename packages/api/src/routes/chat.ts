@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { drizzle } from "drizzle-orm/d1";
 import { inArray, and, eq } from "drizzle-orm";
-import { streamText } from "ai";
+import { streamText, createUIMessageStreamResponse, createUIMessageStream } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
 import type { Env, Variables } from "../bindings";
 import { CloudflareEmbeddingProvider } from "../ai/embeddings/cloudflare";
@@ -101,7 +101,22 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
     },
   });
 
-  return result.toUIMessageStreamResponse({
+  return createUIMessageStreamResponse({
+    stream: createUIMessageStream({
+      async execute({ writer }) {
+        // Emit source-url parts for each retrieved document
+        for (const item of items) {
+          writer.write({
+            type: "source-url",
+            sourceId: item.id,
+            url: item.url,
+            title: item.title ?? undefined,
+          });
+        }
+        // Merge the LLM text stream — must await to prevent premature close
+        await writer.merge(result.toUIMessageStream());
+      },
+    }),
     headers: { "content-encoding": "identity" },
   });
 });

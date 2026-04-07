@@ -1,54 +1,32 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
-
-// All /api/* calls go through the Next.js route handler proxy (same-origin).
-const API_BASE = "";
-
-function getHeaders(): Record<string, string> {
-  const h: Record<string, string> = {};
-  // Optional dev auth token — set NEXT_PUBLIC_API_TOKEN in .env.local
-  const token = process.env.NEXT_PUBLIC_API_TOKEN;
-  if (token) h["Authorization"] = `Bearer ${token}`;
-  return h;
-}
+import { useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import SourcesList from "./SourcesList";
+import { useChatSession } from "../hooks/use-chat-session";
 
 export default function ChatPanel() {
-  const [input, setInput] = useState("");
-  const [confirmClear, setConfirmClear] = useState(false);
-  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const {
+    messages,
+    input,
+    setInput,
+    isStreaming,
+    error,
+    clearError,
+    stop,
+    confirmClear,
+    handleSubmit,
+    handleClear,
+    getMessageText,
+    getMessageSources,
+  } = useChatSession();
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const { messages, sendMessage, status, error, clearError, stop, setMessages } = useChat({
-    transport: new DefaultChatTransport({
-      api: `${API_BASE}/api/chat`,
-      headers: getHeaders,
-    }),
-    onError: (err) => console.error("[chat]", err),
-  });
-
-  const isStreaming = status === "streaming" || status === "submitted";
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
-
-  function getMessageText(msg: (typeof messages)[number]): string {
-    return msg.parts
-      .filter((p): p is { type: "text"; text: string } => p.type === "text")
-      .map((p) => p.text)
-      .join("");
-  }
-
-  function handleSubmit(e?: React.FormEvent) {
-    e?.preventDefault();
-    const text = input.trim();
-    if (!text || isStreaming) return;
-    setInput("");
-    sendMessage({ text });
-  }
 
   return (
     <aside
@@ -71,16 +49,7 @@ export default function ChatPanel() {
         </h2>
         {messages.length > 0 && (
           <button
-            onClick={() => {
-              if (confirmClear) {
-                if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
-                setConfirmClear(false);
-                setMessages([]);
-              } else {
-                setConfirmClear(true);
-                confirmTimerRef.current = setTimeout(() => setConfirmClear(false), 3000);
-              }
-            }}
+            onClick={handleClear}
             className="text-[11px] font-medium transition-colors duration-150"
             style={{ color: confirmClear ? "var(--color-error)" : "var(--color-text-muted)" }}
             onMouseEnter={(e) => {
@@ -126,7 +95,7 @@ export default function ChatPanel() {
               className="text-xs font-[family-name:var(--font-heading)] italic"
               style={{ color: "var(--color-text-muted)" }}
             >
-              "What did I save about React?"
+              &ldquo;What did I save about React?&rdquo;
             </p>
           </div>
         )}
@@ -134,31 +103,38 @@ export default function ChatPanel() {
         {messages.map((msg) => {
           const text = getMessageText(msg);
           const isUser = msg.role === "user";
+          const sources = isUser ? [] : getMessageSources(msg);
+          const isLastStreaming =
+            isStreaming && msg === messages[messages.length - 1] && msg.role === "assistant";
+
           return (
             <div
               key={msg.id}
-              className={`text-sm leading-relaxed rounded-lg px-3.5 py-2.5 max-w-[88%] ${
-                isUser ? "ml-auto" : "mr-auto"
-              }`}
-              style={{
-                backgroundColor: isUser
-                  ? "var(--color-accent)"
-                  : "var(--color-bg-secondary)",
-                color: isUser ? "#ffffff" : "var(--color-text-primary)",
-                borderRadius: isUser
-                  ? "16px 16px 4px 16px"
-                  : "16px 16px 16px 4px",
-              }}
+              className={`max-w-[88%] ${isUser ? "ml-auto" : "mr-auto"}`}
             >
-              <span
-                className={
-                  isStreaming && msg === messages[messages.length - 1] && msg.role === "assistant"
-                    ? "streaming-cursor"
-                    : ""
-                }
+              <div
+                className="text-sm leading-relaxed rounded-lg px-3.5 py-2.5"
+                style={{
+                  backgroundColor: isUser
+                    ? "var(--color-accent)"
+                    : "var(--color-bg-secondary)",
+                  color: isUser ? "#ffffff" : "var(--color-text-primary)",
+                  borderRadius: isUser
+                    ? "16px 16px 4px 16px"
+                    : "16px 16px 16px 4px",
+                }}
               >
-                {text}
-              </span>
+                {isUser ? (
+                  text
+                ) : (
+                  <div className={`chat-markdown-compact ${isLastStreaming ? "streaming-cursor" : ""}`}>
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>
+                  </div>
+                )}
+              </div>
+              {sources.length > 0 && (
+                <SourcesList sources={sources} compact />
+              )}
             </div>
           );
         })}

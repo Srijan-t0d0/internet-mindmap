@@ -3,7 +3,7 @@
 import { useQueryStates, parseAsString, parseAsStringLiteral } from "nuqs";
 import type { ViewMode } from "@internet-mindmap/shared";
 
-const viewModes = ["cards", "list", "reading-list", "graph"] as const;
+const viewModes = ["cards", "list", "reading-list", "graph", "chat"] as const;
 
 export const filterParsers = {
   view: parseAsStringLiteral<ViewMode>(viewModes).withDefault("cards"),

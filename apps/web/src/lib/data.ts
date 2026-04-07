@@ -52,6 +52,7 @@ export async function getItems(params: {
   source_type?: string | null;
   tag?: string | null;
   is_read?: string | null;
+  limit?: number;
 }) {
   const client = await getClient();
   const res = await client.api.items.$get({
@@ -59,6 +60,7 @@ export async function getItems(params: {
       source_type: (params.source_type ?? undefined) as SourceType | undefined,
       tag: params.tag ?? undefined,
       is_read: params.is_read ?? undefined,
+      limit: params.limit?.toString(),
     },
   });
   if (!res.ok) {

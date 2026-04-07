@@ -41,7 +41,9 @@ export function buildChatMessages(
   return {
     system: `You are a helpful assistant that answers questions based on the user's saved knowledge base.
 Only use the provided context to answer. If the context doesn't contain relevant information, say so.
-When referencing items, mention their title and URL.`,
+When citing a source, use bracket references like [1], [2], etc. matching the numbered items provided.
+Use markdown formatting in your responses: **bold** for emphasis, bullet lists, code blocks, etc.
+Keep answers concise and well-structured.`,
     userMessage: `My saved items:\n\n${context}\n\nQuestion: ${question}`,
   };
 }

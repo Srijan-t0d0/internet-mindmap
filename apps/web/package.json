@@ -21,7 +21,9 @@
     "nuqs": "^2.8.9",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
-    "react-force-graph-2d": "^1.29.1"
+    "react-force-graph-2d": "^1.29.1",
+    "react-markdown": "^10.1.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260317.1",

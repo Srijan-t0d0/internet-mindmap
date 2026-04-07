@@ -27,19 +27,21 @@ export default async function Page({
   const selectedTag = params.tag ?? null;
   const searchQuery = params.q ?? "";
 
-  // Server-side initial fetch — React Query picks this up as initialData
+  // Server-side initial fetch — React Query picks this up as initialData.
+  // List mode fetches ALL items; tag/source/read filtering is done client-side
+  // for instant filter switches without a Vercel→CF Worker round-trip.
+  // Chat view doesn't need items — skip the fetch entirely.
+  const needsItems = viewMode !== "chat";
   const [itemsData, tagsData] = await Promise.all([
-    searchQuery
-      ? searchItemsServer({
-          q: searchQuery,
-          source_type: selectedSource,
-          tag: selectedTag,
-        })
-      : getItems({
-          source_type: selectedSource,
-          tag: selectedTag,
-          is_read: viewMode === "reading-list" ? "false" : null,
-        }),
+    needsItems
+      ? searchQuery
+        ? searchItemsServer({
+            q: searchQuery,
+            source_type: selectedSource,
+            tag: selectedTag,
+          })
+        : getItems({ limit: 500 })
+      : Promise.resolve({ items: [], total: 0 }),
     getTags(),
   ]);
 

@@ -28,7 +28,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
     ),
     async (c) => {
       const query = c.req.valid("query");
-      const limit = Math.min(parseInt(query.limit || "50"), 100);
+      const limit = Math.min(parseInt(query.limit || "50"), 500);
       const offset = parseInt(query.offset || "0");
       const sourceType = query.source_type;
       const tag = query.tag;

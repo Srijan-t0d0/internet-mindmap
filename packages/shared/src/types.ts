@@ -27,7 +27,7 @@ export interface Tag {
   item_count: number;
 }
 
-export type ViewMode = "cards" | "list" | "graph" | "reading-list";
+export type ViewMode = "cards" | "list" | "graph" | "reading-list" | "chat";
 
 export interface ChatMessage {
   role: "user" | "assistant";

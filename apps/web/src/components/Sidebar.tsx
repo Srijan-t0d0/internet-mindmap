@@ -46,6 +46,11 @@ const VIEW_ICONS: Record<ViewMode, ReactNode> = {
       <line x1="13.5" y1="13.5" x2="17.5" y2="16.5" />
     </svg>
   ),
+  chat: (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+    </svg>
+  ),
 };
 
 const VIEW_MODES: { key: ViewMode; label: string }[] = [
@@ -53,6 +58,7 @@ const VIEW_MODES: { key: ViewMode; label: string }[] = [
   { key: "list", label: "List" },
   { key: "reading-list", label: "Reading List" },
   { key: "graph", label: "Graph" },
+  { key: "chat", label: "Chat" },
 ];
 
 interface SidebarProps {

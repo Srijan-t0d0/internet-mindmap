@@ -10,7 +10,7 @@ export interface ItemsData {
 }
 
 interface UseItemsQueryOptions {
-  view: string;
+  /** Only used for search mode — tag/source filtering for search stays server-side */
   source: string | null;
   tag: string | null;
   q: string | null;
@@ -20,13 +20,14 @@ interface UseItemsQueryOptions {
 /**
  * React Query hook for items — handles both list and search modes.
  *
- * - Query key changes whenever filters change → auto-refetch
- * - `placeholderData: keepPreviousData` keeps old data visible during fetch
- * - `refetchInterval` polls every 5s when items are still processing
- * - `initialData` from SSR prevents loading flash on first render
+ * List mode: fetches ALL items once (limit 500). Tag, source, and read-status
+ * filtering is done client-side in ItemsShell via useMemo. This avoids a
+ * Vercel→CF Worker round-trip on every filter change and fixes the initialData
+ * masking bug where unfiltered SSR data showed for new query keys.
+ *
+ * Search mode: server-side vector search + optional tag/source filtering.
  */
 export function useItemsQuery({
-  view,
   source,
   tag,
   q,
@@ -37,15 +38,7 @@ export function useItemsQuery({
   return useQuery<ItemsData>({
     queryKey: isSearching
       ? ["items", "search", { q, source_type: source, tag }]
-      : [
-          "items",
-          "list",
-          {
-            source_type: source,
-            tag,
-            is_read: view === "reading-list" ? "false" : null,
-          },
-        ],
+      : ["items", "list"],
     queryFn: async () => {
       if (isSearching) {
         const data = await searchItems({
@@ -55,15 +48,11 @@ export function useItemsQuery({
         });
         return { items: data.items, total: data.count };
       }
-      const data = await fetchItems({
-        source_type: source,
-        tag,
-        is_read: view === "reading-list" ? "false" : null,
-      });
+      const data = await fetchItems({ limit: 500 });
       return { items: data.items, total: data.total };
     },
-    initialData,
-    initialDataUpdatedAt: initialData ? Date.now() : undefined,
+    initialData: isSearching ? undefined : initialData,
+    initialDataUpdatedAt: !isSearching && initialData ? Date.now() : undefined,
     placeholderData: keepPreviousData,
     refetchInterval: (query) => {
       const items = query.state.data?.items;
