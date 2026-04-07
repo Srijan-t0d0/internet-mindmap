@@ -19,7 +19,13 @@ export async function fetchYouTubeTranscript(url: string): Promise<string | null
   if (!videoId) return null;
 
   try {
-    const transcript = await YoutubeTranscript.fetchTranscript(videoId);
+    // Prefer English transcript; fall back to any available language
+    let transcript;
+    try {
+      transcript = await YoutubeTranscript.fetchTranscript(videoId, { lang: "en" });
+    } catch {
+      transcript = await YoutubeTranscript.fetchTranscript(videoId);
+    }
     return transcript.map((entry) => entry.text).join(" ");
   } catch {
     return null;
