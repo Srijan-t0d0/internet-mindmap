@@ -17,6 +17,7 @@
     "paths": {
       "@/*": ["./src/*"],
       "@internet-mindmap/shared": ["../../packages/shared/src"],
+      "@internet-mindmap/api": ["../../packages/api/src/index.ts"],
       "@internet-mindmap/ui": ["../../packages/ui/src"],
       "@internet-mindmap/ui/*": ["../../packages/ui/src/*"]
     }

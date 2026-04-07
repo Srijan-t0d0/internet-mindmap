@@ -3,6 +3,8 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
@@ -12,6 +14,7 @@
     "db:migrate:remote": "wrangler d1 migrations apply internet-mindmap --remote"
   },
   "dependencies": {
+    "@hono/zod-validator": "^0.7.6",
     "@internet-mindmap/shared": "workspace:*",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.37.0",

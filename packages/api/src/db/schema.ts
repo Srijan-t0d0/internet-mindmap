@@ -1,4 +1,7 @@
 import { sqliteTable, text, integer, index, primaryKey, uniqueIndex } from "drizzle-orm/sqlite-core";
+import type { SourceType } from "@internet-mindmap/shared";
+
+type ItemStatus = "pending" | "processing" | "ready" | "error";
 
 export const items = sqliteTable(
   "items",
@@ -6,12 +9,12 @@ export const items = sqliteTable(
     id: text("id").primaryKey(),
     url: text("url").notNull(),
     title: text("title").notNull(),
-    sourceType: text("source_type").notNull(),
+    sourceType: text("source_type").$type<SourceType>().notNull(),
     rawContent: text("raw_content"),
     summary: text("summary"),
     keyPassages: text("key_passages"), // JSON array string
     vectorizeId: text("vectorize_id"),
-    status: text("status").notNull().default("pending"),
+    status: text("status").$type<ItemStatus>().notNull().default("pending"),
     isRead: integer("is_read", { mode: "boolean" }).notNull().default(false),
     lastError: text("last_error"),
     errorCount: integer("error_count").notNull().default(0),

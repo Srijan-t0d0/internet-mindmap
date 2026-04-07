@@ -7,28 +7,16 @@
  */
 
 import { cookies } from "next/headers";
-import type {
-  ItemsResponse,
-  SearchResponse,
-  TagsResponse,
-} from "@internet-mindmap/shared";
+import type { SourceType } from "@internet-mindmap/shared";
+import { createServerClient } from "./api-client";
 
-const WORKER_URL = process.env.API_WORKER_URL ?? "http://localhost:8787";
-
-/**
- * Fetch from the API Worker, forwarding the user's auth cookies.
- */
-async function fetchFromWorker(path: string): Promise<Response> {
+async function getClient() {
   const cookieStore = await cookies();
   const cookieHeader = cookieStore
     .getAll()
     .map((c) => `${c.name}=${c.value}`)
     .join("; ");
-
-  return fetch(`${WORKER_URL}${path}`, {
-    headers: { Cookie: cookieHeader },
-    cache: "no-store", // Always fresh — this is user-specific data
-  });
+  return createServerClient(cookieHeader);
 }
 
 /**
@@ -36,10 +24,20 @@ async function fetchFromWorker(path: string): Promise<Response> {
  * Returns the session object or null if not authenticated.
  */
 export async function getSession() {
+  const workerUrl = process.env.API_WORKER_URL ?? "http://localhost:8787";
+  const cookieStore = await cookies();
+  const cookieHeader = cookieStore
+    .getAll()
+    .map((c) => `${c.name}=${c.value}`)
+    .join("; ");
+
   try {
-    const res = await fetchFromWorker("/api/auth/get-session");
+    const res = await fetch(`${workerUrl}/api/auth/get-session`, {
+      headers: { Cookie: cookieHeader },
+      cache: "no-store",
+    });
     if (!res.ok) return null;
-    const data = await res.json();
+    const data: { session?: unknown; user?: unknown } = await res.json();
     // Better Auth returns { session, user } — return null if missing
     return data?.session ? data : null;
   } catch {
@@ -54,13 +52,15 @@ export async function getItems(params: {
   source_type?: string | null;
   tag?: string | null;
   is_read?: string | null;
-}): Promise<ItemsResponse> {
-  const sp = new URLSearchParams();
-  if (params.source_type) sp.set("source_type", params.source_type);
-  if (params.tag) sp.set("tag", params.tag);
-  if (params.is_read) sp.set("is_read", params.is_read);
-
-  const res = await fetchFromWorker(`/api/items?${sp}`);
+}) {
+  const client = await getClient();
+  const res = await client.api.items.$get({
+    query: {
+      source_type: (params.source_type ?? undefined) as SourceType | undefined,
+      tag: params.tag ?? undefined,
+      is_read: params.is_read ?? undefined,
+    },
+  });
   if (!res.ok) {
     throw new Error(`Failed to fetch items: ${res.status}`);
   }
@@ -74,12 +74,15 @@ export async function searchItemsServer(params: {
   q: string;
   source_type?: string | null;
   tag?: string | null;
-}): Promise<SearchResponse> {
-  const sp = new URLSearchParams({ q: params.q });
-  if (params.source_type) sp.set("source_type", params.source_type);
-  if (params.tag) sp.set("tag", params.tag);
-
-  const res = await fetchFromWorker(`/api/search?${sp}`);
+}) {
+  const client = await getClient();
+  const res = await client.api.search.$get({
+    query: {
+      q: params.q,
+      source_type: (params.source_type ?? undefined) as SourceType | undefined,
+      tag: params.tag ?? undefined,
+    },
+  });
   if (!res.ok) {
     throw new Error(`Search failed: ${res.status}`);
   }
@@ -89,8 +92,9 @@ export async function searchItemsServer(params: {
 /**
  * Fetch all tags with counts.
  */
-export async function getTags(): Promise<TagsResponse> {
-  const res = await fetchFromWorker("/api/tags");
+export async function getTags() {
+  const client = await getClient();
+  const res = await client.api.tags.$get({});
   if (!res.ok) {
     throw new Error(`Failed to fetch tags: ${res.status}`);
   }

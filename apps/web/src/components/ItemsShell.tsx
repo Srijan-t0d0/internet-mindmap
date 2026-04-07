@@ -1,7 +1,6 @@
 "use client";
 
-import { useState, useTransition, useRef, useEffect, lazy, Suspense } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, lazy, Suspense } from "react";
 import type { Item, Tag, ViewMode } from "@internet-mindmap/shared";
 import Sidebar from "./Sidebar";
 import SearchBar from "./SearchBar";
@@ -10,196 +9,138 @@ import ChatPanel from "./ChatPanel";
 import DetailPanel from "./DetailPanel";
 import EmptyState from "./EmptyState";
 const GraphView = lazy(() => import("./GraphView"));
-import { retryItem, updateItem, deleteItem } from "../lib/api";
 import { SOURCE_CSS_COLORS } from "@internet-mindmap/ui";
+
+import { useFilters } from "../hooks/use-filters";
+import { useItemsQuery, type ItemsData } from "../hooks/use-items-query";
+import { useTagsQuery } from "../hooks/use-tags-query";
+import { useRetryItem, useUpdateItem, useDeleteItem } from "../hooks/use-mutations";
 
 interface ItemsShellProps {
   initialItems: Item[];
   initialTotal: number;
-  tags: Tag[];
-  viewMode: ViewMode;
-  selectedSource: string | null;
-  selectedTag: string | null;
-  searchQuery: string;
+  initialTags: Tag[];
 }
 
 export default function ItemsShell({
   initialItems,
   initialTotal,
-  tags,
-  viewMode,
-  selectedSource,
-  selectedTag,
-  searchQuery,
+  initialTags,
 }: ItemsShellProps) {
-  const router = useRouter();
-  // ✅ rendering-usetransition-loading: useTransition instead of manual loading state
-  const [isPending, startTransition] = useTransition();
+  // ---------------------------------------------------------------------------
+  // URL state (nuqs) — single source of truth for all filter params
+  // ---------------------------------------------------------------------------
+  const [filters, setFilters] = useFilters();
+  const { view: viewMode, source: selectedSource, tag: selectedTag, q: searchQuery } = filters;
+  const isSearching = Boolean(searchQuery);
 
-  // ✅ rerender-derived-state-no-effect: sync server props to local state during render
-  const [items, setItems] = useState(initialItems);
-  const [totalItems, setTotalItems] = useState(initialTotal);
-  const [prevServerData, setPrevServerData] = useState({ initialItems, initialTotal });
+  // Local input value — only syncs to URL on Enter
+  const [searchInput, setSearchInput] = useState(searchQuery ?? "");
 
-  if (
-    initialItems !== prevServerData.initialItems ||
-    initialTotal !== prevServerData.initialTotal
-  ) {
-    setPrevServerData({ initialItems, initialTotal });
-    setItems(initialItems);
-    setTotalItems(initialTotal);
-  }
+  // Sync input when URL changes (back/forward navigation)
+  useEffect(() => {
+    setSearchInput(searchQuery ?? "");
+  }, [searchQuery]);
 
-  const [selectedItem, setSelectedItem] = useState<Item | null>(null);
+  // ---------------------------------------------------------------------------
+  // Data fetching (React Query) — auto-refetches when filters change
+  // ---------------------------------------------------------------------------
+  const initialData: ItemsData = { items: initialItems, total: initialTotal };
+
+  const {
+    data: itemsData,
+    isFetching,
+  } = useItemsQuery({
+    view: viewMode,
+    source: selectedSource,
+    tag: selectedTag,
+    q: searchQuery,
+    initialData,
+  });
+
+  const items = itemsData?.items ?? initialItems;
+  const totalItems = itemsData?.total ?? initialTotal;
+
+  const { data: tags = initialTags } = useTagsQuery(initialTags);
+
+  // ---------------------------------------------------------------------------
+  // Mutations (React Query) — optimistic updates + cache invalidation
+  // ---------------------------------------------------------------------------
+  const retryMutation = useRetryItem();
+  const updateMutation = useUpdateItem();
+  const deleteMutation = useDeleteItem();
+
+  // ---------------------------------------------------------------------------
+  // UI state
+  // ---------------------------------------------------------------------------
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [showChat, setShowChat] = useState(true);
-  const [searchInput, setSearchInput] = useState(searchQuery);
 
-  // Sync search input when server-side query changes (e.g. browser back/forward)
-  const [prevQuery, setPrevQuery] = useState(searchQuery);
-  if (searchQuery !== prevQuery) {
-    setPrevQuery(searchQuery);
-    setSearchInput(searchQuery);
-  }
-
-  const isSearching = searchQuery.length > 0;
+  // Derive selectedItem from the items cache — no sync useEffect needed
+  const selectedItem = selectedItemId
+    ? items.find((i) => i.id === selectedItemId) ?? null
+    : null;
 
   // ---------------------------------------------------------------------------
-  // URL-driven filter changes
+  // Filter handlers — thin wrappers around nuqs setFilters
   // ---------------------------------------------------------------------------
-
-  function buildUrl(overrides: Record<string, string | null>) {
-    const state: Record<string, string | null> = {
-      view: viewMode === "cards" ? null : viewMode, // "cards" is default, omit
-      source: selectedSource,
-      tag: selectedTag,
-      q: searchQuery || null,
-      ...overrides,
-    };
-    const sp = new URLSearchParams();
-    for (const [key, val] of Object.entries(state)) {
-      if (val) sp.set(key, val);
-    }
-    const qs = sp.toString();
-    return qs ? `/?${qs}` : "/";
-  }
-
-  function navigateWithTransition(overrides: Record<string, string | null>) {
-    startTransition(() => {
-      router.push(buildUrl(overrides));
-    });
-  }
-
   function handleViewModeChange(mode: ViewMode) {
     setSearchInput("");
-    navigateWithTransition({
-      view: mode === "cards" ? null : mode,
-      q: null,
-    });
+    setFilters({ view: mode, q: null });
   }
 
   function handleSourceTypeChange(source: string | null) {
-    navigateWithTransition({ source });
+    setFilters({ source });
   }
 
   function handleTagChange(tag: string | null) {
-    navigateWithTransition({ tag });
+    setFilters({ tag });
   }
 
   function handleSearch(query: string) {
     if (!query.trim()) {
-      navigateWithTransition({ q: null });
+      setFilters({ q: null });
       return;
     }
-    navigateWithTransition({ q: query.trim() });
+    setFilters({ q: query.trim() });
   }
 
   function handleClearSearch() {
     setSearchInput("");
-    navigateWithTransition({ q: null });
+    setFilters({ q: null });
   }
 
   // ---------------------------------------------------------------------------
-  // Mutations — call API, then update local state optimistically
+  // Item action handlers
   // ---------------------------------------------------------------------------
-
-  async function handleRetry(item: Item) {
-    try {
-      await retryItem(item.id);
-      router.refresh();
-    } catch (err) {
-      console.error("Retry failed:", err);
-    }
+  function handleRetry(item: Item) {
+    retryMutation.mutate(item.id);
   }
 
-  // ✅ rerender-functional-setstate: functional updates for stable callbacks
-  async function handleToggleRead(item: Item) {
-    try {
-      const updated = await updateItem(item.id, { is_read: !item.is_read });
-      setItems((prev) =>
-        prev.map((i) =>
-          i.id === item.id ? { ...i, is_read: updated.is_read } : i
-        )
-      );
-      if (selectedItem?.id === item.id) {
-        setSelectedItem((prev) =>
-          prev ? { ...prev, is_read: updated.is_read } : null
-        );
-      }
-    } catch (err) {
-      console.error("Toggle read failed:", err);
-    }
+  function handleToggleRead(item: Item) {
+    updateMutation.mutate({ id: item.id, data: { is_read: !item.is_read } });
   }
 
-  async function handleDelete(item: Item) {
-    try {
-      await deleteItem(item.id);
-      setItems((prev) => prev.filter((i) => i.id !== item.id));
-      setTotalItems((prev) => prev - 1);
-      if (selectedItem?.id === item.id) {
-        handleCloseDetail();
-      }
-      // Let the background poll sync tag counts — calling router.refresh()
-      // immediately would clobber the optimistic state via the render-phase
-      // server-data sync before the API has committed the deletion.
-    } catch (err) {
-      console.error("Delete failed:", err);
+  function handleDelete(item: Item) {
+    deleteMutation.mutate(item.id);
+    if (selectedItem?.id === item.id) {
+      handleCloseDetail();
     }
   }
 
   function handleItemClick(item: Item) {
-    setSelectedItem(item);
+    setSelectedItemId(item.id);
     setShowChat(false);
   }
 
   function handleCloseDetail() {
-    setSelectedItem(null);
+    setSelectedItemId(null);
     setShowChat(true);
   }
 
   // ---------------------------------------------------------------------------
-  // Background polling for processing items — uses router.refresh() (no spinner)
-  // ---------------------------------------------------------------------------
-
-  const hasProcessingRef = useRef(false);
-  useEffect(() => {
-    hasProcessingRef.current = items.some(
-      (i) => i.status === "pending" || i.status === "processing"
-    );
-  }, [items]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (hasProcessingRef.current) {
-        router.refresh(); // Silent server re-fetch — no loading state
-      }
-    }, 5000);
-    return () => clearInterval(interval);
-  }, [router]);
-
-  // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
-
   return (
     <div className="flex h-screen overflow-hidden">
       <Sidebar
@@ -217,7 +158,7 @@ export default function ItemsShell({
         className="flex-1 h-screen overflow-y-auto overflow-x-hidden p-6"
         role="main"
         style={{
-          opacity: isPending ? 0.6 : 1,
+          opacity: isFetching ? 0.6 : 1,
           transition: "opacity 150ms ease",
         }}
       >

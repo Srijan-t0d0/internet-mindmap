@@ -67,17 +67,17 @@ app.use("/api/search/*", createRateLimiter(30, "1 m", "search"));
 app.use("/api/save/*", createRateLimiter(10, "1 m", "save"));
 app.use("/api/import/*", createRateLimiter(5, "1 h", "import"));
 
-// Routes
-app.route("/api/save", saveRoute);
-app.route("/api/search", searchRoute);
-app.route("/api/items", itemsRoute);
-app.route("/api/chat", chatRoute);
-app.route("/api/tags", tagsRoute);
-app.route("/api/agent", agentRoute);
-app.route("/api/import", importRoute);
-app.route("/api/usage", usageRoute);
+// Routes — chained for Hono RPC type inference
+const routes = app
+  .route("/api/save", saveRoute)
+  .route("/api/search", searchRoute)
+  .route("/api/items", itemsRoute)
+  .route("/api/chat", chatRoute)
+  .route("/api/tags", tagsRoute)
+  .route("/api/agent", agentRoute)
+  .route("/api/import", importRoute)
+  .route("/api/usage", usageRoute)
+  .get("/", (c) => c.json({ status: "ok", service: "internet-mindmap-api" }, 200));
 
-// Health check
-app.get("/", (c) => c.json({ status: "ok", service: "internet-mindmap-api" }));
-
-export default app;
+export type AppType = typeof routes;
+export default routes;

@@ -27,7 +27,7 @@ export default async function Page({
   const selectedTag = params.tag ?? null;
   const searchQuery = params.q ?? "";
 
-  // ✅ async-parallel: independent fetches run concurrently
+  // Server-side initial fetch — React Query picks this up as initialData
   const [itemsData, tagsData] = await Promise.all([
     searchQuery
       ? searchItemsServer({
@@ -50,11 +50,7 @@ export default async function Page({
     <ItemsShell
       initialItems={items}
       initialTotal={total}
-      tags={tagsData.tags}
-      viewMode={viewMode}
-      selectedSource={selectedSource}
-      selectedTag={selectedTag}
-      searchQuery={searchQuery}
+      initialTags={tagsData.tags}
     />
   );
 }

@@ -4,9 +4,7 @@ import { sql, desc, eq } from "drizzle-orm";
 import type { Env, Variables } from "../bindings";
 import * as schema from "../db/schema";
 
-const app = new Hono<{ Bindings: Env; Variables: Variables }>();
-
-app.get("/", async (c) => {
+const app = new Hono<{ Bindings: Env; Variables: Variables }>().get("/", async (c) => {
   const db = drizzle(c.env.DB);
   const userId = c.get("userId");
 
@@ -23,13 +21,16 @@ app.get("/", async (c) => {
     .groupBy(schema.tags.id)
     .orderBy(desc(sql`count(${schema.itemTags.itemId})`), schema.tags.name);
 
-  return c.json({
-    tags: result.map((row) => ({
-      id: row.id,
-      name: row.name,
-      item_count: row.itemCount,
-    })),
-  });
+  return c.json(
+    {
+      tags: result.map((row) => ({
+        id: row.id,
+        name: row.name,
+        item_count: row.itemCount,
+      })),
+    },
+    200
+  );
 });
 
 export default app;

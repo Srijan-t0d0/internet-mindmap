@@ -62,7 +62,9 @@ export interface LLMProvider {
   ): Promise<TagsAndSummary>;
 }
 
-// API request/response types
+// API request/response types are now inferred from Hono route definitions
+// via the RPC client. The types below are kept for the browser extension
+// which has its own API client and doesn't use Hono RPC.
 
 export interface SaveRequest {
   url: string;
@@ -80,69 +82,4 @@ export interface SaveResponse {
   id: string;
   status: string;
   message: string;
-}
-
-export interface SearchResponse {
-  items: Item[];
-  query: string;
-  count: number;
-}
-
-export interface ItemsResponse {
-  items: Item[];
-  total: number;
-  limit: number;
-  offset: number;
-}
-
-export interface TagsResponse {
-  tags: Tag[];
-}
-
-export interface ChatRequest {
-  question: string;
-}
-
-export interface AgentSearchRequest {
-  query: string;
-  limit?: number;
-  tags?: string[];
-}
-
-export interface AgentSearchResponse {
-  items: {
-    title: string;
-    url: string;
-    summary: string | null;
-    tags: string[];
-    similarity_score: number;
-  }[];
-}
-
-export interface ImportRequest {
-  html: string;
-}
-
-export interface ImportResponse {
-  imported: number;
-  skipped: number;
-  total_found: number;
-  capped: boolean;
-  message: string;
-}
-
-// ── Usage tracking ─────────────────────────────────────────────────────────
-
-export interface UsageBreakdown {
-  event_type: string;
-  count: number;
-  input_tokens: number;
-  output_tokens: number;
-  total_tokens: number;
-}
-
-export interface UsageStats {
-  total_events: number;
-  total_tokens: number;
-  breakdown: UsageBreakdown[];
 }

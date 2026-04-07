@@ -12,9 +12,7 @@ import * as schema from "../db/schema";
 
 const LLM_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8";
 
-const app = new Hono<{ Bindings: Env; Variables: Variables }>();
-
-app.post("/", async (c) => {
+const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async (c) => {
   const body = await c.req.json<{ messages?: { role: string; content: string; parts?: { type: string; text?: string }[] }[] }>();
 
   // AI SDK v6 sends { messages } with parts array — extract the last user message text
