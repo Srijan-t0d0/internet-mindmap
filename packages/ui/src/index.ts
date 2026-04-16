@@ -15,3 +15,12 @@ export { default as AlertDialog } from "./components/AlertDialog";
 export type { AlertDialogProps } from "./components/AlertDialog";
 export { Kbd, KbdGroup } from "./components/Kbd";
 export { Button, buttonVariants } from "./components/ui/button";
+export {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  PopoverAnchor,
+  PopoverHeader,
+  PopoverTitle,
+  PopoverDescription,
+} from "./components/ui/popover";
