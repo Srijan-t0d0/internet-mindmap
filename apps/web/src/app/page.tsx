@@ -22,14 +22,12 @@ export default async function Page({
   }
 
   const params = await searchParams;
+  // "chat" is now its own page at /chat — default explore to cards
   const viewMode = (params.view as ViewMode) ?? "cards";
   const selectedSource = params.source ?? null;
   const selectedTag = params.tag ?? null;
   const searchQuery = params.q ?? "";
 
-  // Server-side initial fetch — React Query picks this up as initialData.
-  // List mode fetches ALL items; tag/source/read filtering is done client-side
-  // for instant filter switches without a Vercel→CF Worker round-trip.
   const [itemsData, tagsData] = await Promise.all([
     searchQuery
       ? searchItemsServer({
@@ -42,7 +40,7 @@ export default async function Page({
   ]);
 
   const items = itemsData.items;
-  const total = "total" in itemsData ? itemsData.total : itemsData.count;
+  const total = "total" in itemsData ? itemsData.total : (itemsData as { count: number }).count;
 
   return (
     <ItemsShell

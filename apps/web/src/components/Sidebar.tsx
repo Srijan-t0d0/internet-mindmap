@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import type { Tag, ViewMode } from "@internet-mindmap/shared";
 import { SOURCE_TYPES, SOURCE_LABELS, SOURCE_CSS_COLORS } from "@internet-mindmap/ui";
 import UserMenu from "./UserMenu";
@@ -9,7 +10,7 @@ const SOURCE_FILTERS = SOURCE_TYPES
   .filter((key) => key !== "other")
   .map((key) => ({ key, label: SOURCE_LABELS[key], color: SOURCE_CSS_COLORS[key] }));
 
-const VIEW_ICONS: Record<ViewMode, ReactNode> = {
+const EXPLORE_ICONS: Record<string, ReactNode> = {
   cards: (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
       <rect x="3" y="3" width="7" height="7" rx="1" />
@@ -48,7 +49,7 @@ const VIEW_ICONS: Record<ViewMode, ReactNode> = {
   ),
 };
 
-const VIEW_MODES: { key: ViewMode; label: string }[] = [
+const EXPLORE_MODES: { key: ViewMode; label: string }[] = [
   { key: "cards", label: "Cards" },
   { key: "list", label: "List" },
   { key: "reading-list", label: "Reading List" },
@@ -57,29 +58,32 @@ const VIEW_MODES: { key: ViewMode; label: string }[] = [
 
 interface SidebarProps {
   tags: Tag[];
-  viewMode: ViewMode;
-  selectedSourceType: string | null;
-  selectedTag: string | null;
-  onViewModeChange: (mode: ViewMode) => void;
-  onSourceTypeChange: (source: string | null) => void;
-  onTagChange: (tag: string | null) => void;
   itemCount: number;
-  chatOpen: boolean;
-  onToggleChat: () => void;
+  // Explore-only props — omitted when rendering on the /chat page
+  viewMode?: ViewMode;
+  selectedSourceType?: string | null;
+  selectedTag?: string | null;
+  onViewModeChange?: (mode: ViewMode) => void;
+  onSourceTypeChange?: (source: string | null) => void;
+  onTagChange?: (tag: string | null) => void;
 }
 
 export default function Sidebar({
   tags,
+  itemCount,
   viewMode,
   selectedSourceType,
   selectedTag,
   onViewModeChange,
   onSourceTypeChange,
   onTagChange,
-  itemCount,
-  chatOpen,
-  onToggleChat,
 }: SidebarProps) {
+  const pathname = usePathname();
+  const router = useRouter();
+
+  const isChat = pathname === "/chat";
+  const isExplore = !isChat;
+
   return (
     <aside
       className="w-60 h-screen flex-shrink-0 overflow-y-auto border-r flex flex-col"
@@ -101,165 +105,205 @@ export default function Sidebar({
       </div>
 
       <nav className="flex-1 px-3 pb-6 space-y-6 overflow-y-auto">
-        {/* View modes */}
-        <div>
-          <h2
-            className="text-[11px] font-medium uppercase tracking-widest mb-2 px-3"
-            style={{ color: "var(--color-text-muted)" }}
+        {/* Top-level page nav */}
+        <div className="space-y-0.5">
+          {/* Chat */}
+          <button
+            onClick={() => router.push("/chat")}
+            className="w-full text-left text-sm px-3 py-2 rounded-md transition-all duration-150 flex items-center gap-2.5"
+            style={{
+              backgroundColor: isChat ? "var(--color-accent-subtle)" : "transparent",
+              color: isChat ? "var(--color-accent)" : "var(--color-text-secondary)",
+              fontWeight: isChat ? 500 : 400,
+            }}
+            onMouseEnter={(e) => {
+              if (!isChat) e.currentTarget.style.backgroundColor = "var(--color-bg-card)";
+            }}
+            onMouseLeave={(e) => {
+              if (!isChat) e.currentTarget.style.backgroundColor = "transparent";
+            }}
           >
-            View
-          </h2>
-          <div className="space-y-0.5">
-            {VIEW_MODES.map((mode) => {
-              const active = viewMode === mode.key;
-              return (
-                <button
-                  key={mode.key}
-                  onClick={() => onViewModeChange(mode.key)}
-                  className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-all duration-150 flex items-center gap-2.5"
-                  style={{
-                    backgroundColor: active ? "var(--color-bg-card)" : "transparent",
-                    color: active ? "var(--color-text-primary)" : "var(--color-text-secondary)",
-                    fontWeight: active ? 500 : 400,
-                    boxShadow: active ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
-                  }}
-                >
-                  <span style={{ opacity: active ? 1 : 0.5 }}>{VIEW_ICONS[mode.key]}</span>
-                  {mode.label}
-                </button>
-              );
-            })}
-          </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </svg>
+            Chat
+            <span
+              className="ml-auto text-[10px] font-mono"
+              style={{ color: "var(--color-text-muted)", opacity: 0.5 }}
+            >
+              {"\u2318"}J
+            </span>
+          </button>
+
+          {/* Explore */}
+          <button
+            onClick={() => {
+              if (isChat) {
+                router.push("/");
+              } else {
+                onViewModeChange?.("cards");
+              }
+            }}
+            className="w-full text-left text-sm px-3 py-2 rounded-md transition-all duration-150 flex items-center gap-2.5"
+            style={{
+              backgroundColor: isExplore ? "var(--color-bg-card)" : "transparent",
+              color: isExplore ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+              fontWeight: isExplore ? 500 : 400,
+              boxShadow: isExplore ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
+            }}
+            onMouseEnter={(e) => {
+              if (!isExplore) e.currentTarget.style.backgroundColor = "var(--color-bg-card)";
+            }}
+            onMouseLeave={(e) => {
+              if (!isExplore) e.currentTarget.style.backgroundColor = "transparent";
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            Explore
+          </button>
         </div>
 
-        {/* Source filters */}
-        <div>
-          <h2
-            className="text-[11px] font-medium uppercase tracking-widest mb-2 px-3"
-            style={{ color: "var(--color-text-muted)" }}
-          >
-            Sources
-          </h2>
-          <div className="space-y-0.5">
-            <button
-              onClick={() => onSourceTypeChange(null)}
-              className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-all duration-150"
-              style={{
-                backgroundColor: !selectedSourceType ? "var(--color-bg-card)" : "transparent",
-                color: !selectedSourceType ? "var(--color-text-primary)" : "var(--color-text-secondary)",
-                fontWeight: !selectedSourceType ? 500 : 400,
-                boxShadow: !selectedSourceType ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
-              }}
-            >
-              All Sources
-            </button>
-            {SOURCE_FILTERS.map((source) => {
-              const active = selectedSourceType === source.key;
-              return (
-                <button
-                  key={source.key}
-                  onClick={() => onSourceTypeChange(active ? null : source.key)}
-                  className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-all duration-150 flex items-center gap-2.5"
-                  style={{
-                    backgroundColor: active ? "var(--color-bg-card)" : "transparent",
-                    color: active ? "var(--color-text-primary)" : "var(--color-text-secondary)",
-                    fontWeight: active ? 500 : 400,
-                    boxShadow: active ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
-                  }}
-                >
-                  <span
-                    className="w-2 h-2 rounded-full flex-shrink-0 transition-transform duration-150"
-                    style={{
-                      backgroundColor: source.color,
-                      transform: active ? "scale(1.25)" : "scale(1)",
-                    }}
-                  />
-                  {source.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Tag filters */}
-        {tags.length > 0 && (
-          <div>
-            <h2
-              className="text-[11px] font-medium uppercase tracking-widest mb-2 px-3"
-              style={{ color: "var(--color-text-muted)" }}
-            >
-              Topics
-            </h2>
-            <div className="space-y-0.5">
-              <button
-                onClick={() => onTagChange(null)}
-                className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-all duration-150"
-                style={{
-                  backgroundColor: !selectedTag ? "var(--color-bg-card)" : "transparent",
-                  color: !selectedTag ? "var(--color-text-primary)" : "var(--color-text-secondary)",
-                  fontWeight: !selectedTag ? 500 : 400,
-                  boxShadow: !selectedTag ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
-                }}
+        {/* Explore sub-navigation — only visible when on an explore view */}
+        {isExplore && (
+          <>
+            {/* View modes */}
+            <div>
+              <h2
+                className="text-[11px] font-medium uppercase tracking-widest mb-2 px-3"
+                style={{ color: "var(--color-text-muted)" }}
               >
-                All Topics
-              </button>
-              {tags.slice(0, 20).map((tag) => {
-                const active = selectedTag === tag.name;
-                return (
+                View
+              </h2>
+              <div className="space-y-0.5">
+                {EXPLORE_MODES.map((mode) => {
+                  const active = viewMode === mode.key;
+                  return (
+                    <button
+                      key={mode.key}
+                      onClick={() => onViewModeChange?.(mode.key)}
+                      className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-all duration-150 flex items-center gap-2.5"
+                      style={{
+                        backgroundColor: active ? "var(--color-bg-card)" : "transparent",
+                        color: active ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+                        fontWeight: active ? 500 : 400,
+                        boxShadow: active ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
+                      }}
+                    >
+                      <span style={{ opacity: active ? 1 : 0.5 }}>{EXPLORE_ICONS[mode.key]}</span>
+                      {mode.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Source filters */}
+            <div>
+              <h2
+                className="text-[11px] font-medium uppercase tracking-widest mb-2 px-3"
+                style={{ color: "var(--color-text-muted)" }}
+              >
+                Sources
+              </h2>
+              <div className="space-y-0.5">
+                <button
+                  onClick={() => onSourceTypeChange?.(null)}
+                  className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-all duration-150"
+                  style={{
+                    backgroundColor: !selectedSourceType ? "var(--color-bg-card)" : "transparent",
+                    color: !selectedSourceType ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+                    fontWeight: !selectedSourceType ? 500 : 400,
+                    boxShadow: !selectedSourceType ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
+                  }}
+                >
+                  All Sources
+                </button>
+                {SOURCE_FILTERS.map((source) => {
+                  const active = selectedSourceType === source.key;
+                  return (
+                    <button
+                      key={source.key}
+                      onClick={() => onSourceTypeChange?.(active ? null : source.key)}
+                      className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-all duration-150 flex items-center gap-2.5"
+                      style={{
+                        backgroundColor: active ? "var(--color-bg-card)" : "transparent",
+                        color: active ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+                        fontWeight: active ? 500 : 400,
+                        boxShadow: active ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
+                      }}
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full flex-shrink-0 transition-transform duration-150"
+                        style={{
+                          backgroundColor: source.color,
+                          transform: active ? "scale(1.25)" : "scale(1)",
+                        }}
+                      />
+                      {source.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Tag filters */}
+            {tags.length > 0 && (
+              <div>
+                <h2
+                  className="text-[11px] font-medium uppercase tracking-widest mb-2 px-3"
+                  style={{ color: "var(--color-text-muted)" }}
+                >
+                  Topics
+                </h2>
+                <div className="space-y-0.5">
                   <button
-                    key={tag.id}
-                    onClick={() => onTagChange(active ? null : tag.name)}
-                    className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-all duration-150 flex items-center justify-between"
+                    onClick={() => onTagChange?.(null)}
+                    className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-all duration-150"
                     style={{
-                      backgroundColor: active ? "var(--color-bg-card)" : "transparent",
-                      color: active ? "var(--color-text-primary)" : "var(--color-text-secondary)",
-                      fontWeight: active ? 500 : 400,
-                      boxShadow: active ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
+                      backgroundColor: !selectedTag ? "var(--color-bg-card)" : "transparent",
+                      color: !selectedTag ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+                      fontWeight: !selectedTag ? 500 : 400,
+                      boxShadow: !selectedTag ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
                     }}
                   >
-                    <span className="truncate">{tag.name}</span>
-                    <span
-                      className="text-[11px] tabular-nums flex-shrink-0 ml-2"
-                      style={{ color: "var(--color-text-muted)" }}
-                    >
-                      {tag.item_count}
-                    </span>
+                    All Topics
                   </button>
-                );
-              })}
-            </div>
-          </div>
+                  {tags.slice(0, 20).map((tag) => {
+                    const active = selectedTag === tag.name;
+                    return (
+                      <button
+                        key={tag.id}
+                        onClick={() => onTagChange?.(active ? null : tag.name)}
+                        className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-all duration-150 flex items-center justify-between"
+                        style={{
+                          backgroundColor: active ? "var(--color-bg-card)" : "transparent",
+                          color: active ? "var(--color-text-primary)" : "var(--color-text-secondary)",
+                          fontWeight: active ? 500 : 400,
+                          boxShadow: active ? "0 1px 2px rgba(0,0,0,0.04)" : "none",
+                        }}
+                      >
+                        <span className="truncate">{tag.name}</span>
+                        <span
+                          className="text-[11px] tabular-nums flex-shrink-0 ml-2"
+                          style={{ color: "var(--color-text-muted)" }}
+                        >
+                          {tag.item_count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </>
         )}
       </nav>
 
-      {/* Chat toggle + User menu at the bottom */}
+      {/* User menu at the bottom */}
       <div className="px-3 pb-4 pt-2 border-t space-y-1" style={{ borderColor: "var(--color-border-subtle)" }}>
-        <button
-          onClick={onToggleChat}
-          className="w-full text-left text-sm px-3 py-2 rounded-md transition-all duration-150 flex items-center gap-2.5"
-          style={{
-            backgroundColor: chatOpen ? "var(--color-accent-subtle)" : "transparent",
-            color: chatOpen ? "var(--color-accent)" : "var(--color-text-secondary)",
-            fontWeight: chatOpen ? 500 : 400,
-          }}
-          onMouseEnter={(e) => {
-            if (!chatOpen) e.currentTarget.style.backgroundColor = "var(--color-bg-card)";
-          }}
-          onMouseLeave={(e) => {
-            if (!chatOpen) e.currentTarget.style.backgroundColor = "transparent";
-          }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-          </svg>
-          Ask AI
-          <span
-            className="ml-auto text-[10px] font-mono"
-            style={{ color: "var(--color-text-muted)", opacity: 0.6 }}
-          >
-            {"\u2318"}J
-          </span>
-        </button>
         <UserMenu />
       </div>
     </aside>

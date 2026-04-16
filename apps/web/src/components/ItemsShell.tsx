@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from "react";
+import { useState, useEffect, useMemo, lazy, Suspense } from "react";
+import { useRouter } from "next/navigation";
 import type { Item, Tag, ViewMode } from "@internet-mindmap/shared";
 import Sidebar from "./Sidebar";
 import SearchBar from "./SearchBar";
 import ItemCard from "./ItemCard";
-import ChatPanel from "./ChatPanel";
 import DetailPanel from "./DetailPanel";
 import EmptyState from "./EmptyState";
 const GraphView = lazy(() => import("./GraphView"));
@@ -30,6 +30,7 @@ export default function ItemsShell({
   // ---------------------------------------------------------------------------
   // URL state (nuqs) — single source of truth for all filter params
   // ---------------------------------------------------------------------------
+  const router = useRouter();
   const [filters, setFilters] = useFilters();
   const { view: viewMode, source: selectedSource, tag: selectedTag, q: searchQuery } = filters;
   const isSearching = Boolean(searchQuery);
@@ -91,35 +92,33 @@ export default function ItemsShell({
   const deleteMutation = useDeleteItem();
 
   // ---------------------------------------------------------------------------
-  // UI state — chat and detail panel are independent layers
+  // UI state
   // ---------------------------------------------------------------------------
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
-  const [chatOpen, setChatOpen] = useState(false);
 
   // Derive selectedItem from the items cache — no sync useEffect needed
   const selectedItem = selectedItemId
     ? items.find((i) => i.id === selectedItemId) ?? null
     : null;
 
-  // ⌘J keyboard shortcut to toggle chat
-  const toggleChat = useCallback(() => setChatOpen((prev) => !prev), []);
+  // ⌘J keyboard shortcut to jump to chat
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === "j") {
         e.preventDefault();
-        toggleChat();
+        router.push("/chat");
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleChat]);
+  }, [router]);
 
   // ---------------------------------------------------------------------------
   // Filter handlers — thin wrappers around nuqs setFilters
   // ---------------------------------------------------------------------------
   function handleViewModeChange(mode: ViewMode) {
     setSearchInput("");
-    setFilters({ view: mode, q: null });
+    setFilters({ view: mode as Exclude<ViewMode, "chat">, q: null });
   }
 
   function handleSourceTypeChange(source: string | null) {
@@ -183,8 +182,6 @@ export default function ItemsShell({
         onSourceTypeChange={handleSourceTypeChange}
         onTagChange={handleTagChange}
         itemCount={totalItems}
-        chatOpen={chatOpen}
-        onToggleChat={toggleChat}
       />
 
       <main
@@ -356,9 +353,6 @@ export default function ItemsShell({
           onDelete={handleDelete}
         />
       )}
-
-      {/* Chat — floating panel, independent of everything else */}
-      <ChatPanel open={chatOpen} onClose={() => setChatOpen(false)} />
     </div>
   );
 }
