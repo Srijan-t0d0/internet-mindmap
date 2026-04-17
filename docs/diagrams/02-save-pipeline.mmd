@@ -1,0 +1,79 @@
+flowchart TB
+  %% Save → ProcessItemWorkflow pipeline
+
+  User(["User"])
+  BG["background.ts"]
+  CS["content.ts<br/>Defuddle extract"]
+  Save["POST /api/save"]
+
+  User -->|Cmd-Shift-S| BG
+  BG -->|extract| CS
+  CS -->|SaveRequest| BG
+  BG -->|Bearer| Save
+
+  Save --> Upsert{"exists?"}
+  Upsert -->|yes| Upd[("UPDATE items<br/>status=pending")]
+  Upsert -->|no| Ins[("INSERT items")]
+  Upd --> Kick(["PROCESS_ITEM.create"])
+  Ins --> Kick
+
+  Kick --> S1
+
+  subgraph WF["ProcessItemWorkflow — durable, checkpointed"]
+    direction TB
+    S1["1 update-status"] --> S2["2 fetch-content"]
+    S2 -->|youtube + empty| YT["fetchYouTubeTranscript"]
+    YT --> S3
+    S2 --> S3["3 generate-tags<br/>Qwen3-30B"]
+    S3 --> S4["4 embed-and-store<br/>EmbeddingGemma"]
+    S4 --> S5["5 store-tags"]
+    S5 --> Done[("status=ready<br/>title, summary, passages")]
+    S1 -.fail.-> Err["mark-error"]
+    S2 -.fail.-> Err
+    S3 -.fail.-> Err
+    S4 -.fail.-> Err
+    S5 -.fail.-> Err
+    Err --> ErrDB[("status=error")]
+  end
+
+  ErrDB -.user retry.-> Retry["POST /api/items/:id"]
+  Retry -.-> Kick
+
+  %% Optional detail on embed step (kept compact)
+  subgraph EMB["Step 4 detail"]
+    direction TB
+    Compose["compose enrichedText<br/>title + notes + summary<br/>+ keyPassages"]
+    Chunk["sliding window<br/>6000 chars / 500 overlap"]
+    Pending["PendingEmbeddingInput[]"]
+    EMBapi["AI.run embeddinggemma-300m<br/>L2 normalize → float[768]"]
+    WriteItem[("items.embedding")]
+    WriteChunks[("item_chunks")]
+    Jobs[("embedding_jobs")]
+
+    Compose --> Pending
+    Chunk --> Pending
+    Pending --> EMBapi
+    EMBapi --> WriteItem
+    EMBapi --> WriteChunks
+    EMBapi --> Jobs
+  end
+
+  S4 -. detail .-> EMB
+
+  style WF  fill:#fff4ea,stroke:#F38020,color:#6b2b00
+  style EMB fill:#f5f0ff,stroke:#8B5CF6,color:#3d1f7a
+
+  classDef cf    fill:#F38020,color:#ffffff,stroke:#F38020
+  classDef ai    fill:#8B5CF6,color:#ffffff,stroke:#8B5CF6
+  classDef db    fill:#00E5A0,color:#00362a,stroke:#00A877
+  classDef ext   fill:#4285F4,color:#ffffff,stroke:#4285F4
+  classDef err   fill:#fde2e2,color:#6b1d1d,stroke:#c0392b
+  classDef actor fill:#ffffff,color:#222222,stroke:#999999
+
+  class User actor
+  class BG,CS,Save,Retry cf
+  class S1,S2,S3,S4,S5 cf
+  class YT,EMBapi,Compose,Chunk,Pending ai
+  class Upd,Ins,Done,WriteItem,WriteChunks,Jobs,ErrDB db
+  class Kick ext
+  class Err err

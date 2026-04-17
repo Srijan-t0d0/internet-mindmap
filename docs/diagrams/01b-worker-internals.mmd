@@ -1,0 +1,94 @@
+flowchart TB
+  %% Inside the Cloudflare Worker: middleware → routes → workflow + AI layer
+
+  subgraph MW["Middleware"]
+    direction LR
+    M1["logger"] --> M2["CORS"] --> M3["Better Auth"]
+    M3 --> M4["requireAuth<br/>session or Bearer"]
+    M4 --> M5["rate limit<br/>Upstash"]
+  end
+
+  subgraph ROUTES["Routes /api/*"]
+    direction TB
+    R_auth["/auth/*"]
+    R_save["POST /save"]
+    R_search["GET /search"]
+    R_items["items CRUD + retry"]
+    R_chat["POST /chat"]
+    R_tags["GET /tags"]
+    R_agent["POST /agent/search"]
+    R_import["POST /import"]
+    R_admin["POST /admin/reindex"]
+  end
+
+  subgraph WF["ProcessItemWorkflow"]
+    direction LR
+    W1["1 status=processing"] --> W2["2 fetch content"]
+    W2 --> W3["3 tag + summarise"]
+    W3 --> W4["4 embed + store"]
+    W4 --> W5["5 upsert tags"]
+    Werr["mark error"]
+    W1 -.fail.-> Werr
+    W2 -.fail.-> Werr
+    W3 -.fail.-> Werr
+    W4 -.fail.-> Werr
+    W5 -.fail.-> Werr
+  end
+
+  subgraph AI_LAYER["AI provider layer"]
+    direction TB
+    EmbReg["EmbeddingRegistry<br/>active + shadow"]
+    EmbProv["CloudflareEmbeddingProvider<br/>gemma-768-v1"]
+    LLMProv["CloudflareLLMProvider<br/>qwen3-30b"]
+    HyDE["hyde.ts"]
+    VecSearch["vector-search.ts<br/>pgvector UNION"]
+    YT["youtube.ts"]
+    EmbReg --> EmbProv
+  end
+
+  subgraph DEST["Targets"]
+    direction TB
+    PG[("Neon Postgres")]
+    WAI["Workers AI"]
+    YTApi(["YouTube"])
+    Redis[("Upstash Redis")]
+  end
+
+  MW --> ROUTES
+  R_save --> WF
+  R_items -->|retry| WF
+  R_import -->|batch 50| WF
+  R_admin -->|bulk reindex| WF
+
+  ROUTES --> AI_LAYER
+  WF --> AI_LAYER
+
+  ROUTES --> PG
+  WF --> PG
+  EmbProv --> WAI
+  LLMProv --> WAI
+  HyDE --> LLMProv
+  VecSearch --> PG
+  YT --> YTApi
+  M5 --> Redis
+
+  style MW       fill:#fff4ea,stroke:#F38020,color:#6b2b00
+  style ROUTES   fill:#fff4ea,stroke:#F38020,color:#6b2b00
+  style WF       fill:#fff4ea,stroke:#F38020,color:#6b2b00
+  style AI_LAYER fill:#f5f0ff,stroke:#8B5CF6,color:#3d1f7a
+  style DEST     fill:#f5f5f5,stroke:#888888,color:#222222
+
+  classDef cf    fill:#F38020,color:#ffffff,stroke:#F38020
+  classDef ai    fill:#8B5CF6,color:#ffffff,stroke:#8B5CF6
+  classDef db    fill:#00E5A0,color:#00362a,stroke:#00A877
+  classDef ext   fill:#4285F4,color:#ffffff,stroke:#4285F4
+  classDef err   fill:#fde2e2,color:#6b1d1d,stroke:#c0392b
+
+  class M1,M2,M3,M4,M5 cf
+  class R_auth,R_save,R_search,R_items,R_chat,R_tags,R_agent,R_import,R_admin cf
+  class W1,W2,W3,W4,W5 cf
+  class Werr err
+  class EmbReg,EmbProv,LLMProv,HyDE,VecSearch,YT ai
+  class PG,Redis db
+  class WAI ai
+  class YTApi ext

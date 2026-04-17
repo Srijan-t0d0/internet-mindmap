@@ -1,0 +1,70 @@
+flowchart LR
+  %% High-level system map: clients → web → api → data + ai
+
+  subgraph CLIENTS["Clients"]
+    direction TB
+    Browser(["Browser"])
+    Ext(["Chrome Extension"])
+    Agent(["External AI agents"])
+  end
+
+  subgraph WEB["Vercel — Next.js 15"]
+    direction TB
+    NextApp["App Router<br/>RSC + Client views"]
+    NextRewrite["vercel.json rewrite<br/>/api/* → Worker"]
+  end
+
+  subgraph API["Cloudflare Worker — Hono"]
+    direction TB
+    Hono["routes + middleware"]
+    WF["ProcessItemWorkflow<br/>(background pipeline)"]
+  end
+
+  subgraph DATA["Data"]
+    direction TB
+    PG[("Neon Postgres<br/>items · chunks · tags<br/>pgvector HNSW")]
+    Redis[("Upstash Redis<br/>rate limits")]
+  end
+
+  subgraph AI["AI"]
+    direction TB
+    WAI["Workers AI<br/>EmbeddingGemma 300M<br/>Qwen3-30B"]
+  end
+
+  Google(["Google OAuth"])
+  YTApi(["YouTube timedtext"])
+
+  Browser --> NextApp
+  Ext -->|Bearer token| NextRewrite
+  Agent -->|Bearer token| NextRewrite
+  NextApp --> NextRewrite
+  NextRewrite --> Hono
+  Hono --> WF
+  Hono --> PG
+  WF --> PG
+  Hono --> Redis
+  Hono --> WAI
+  WF --> WAI
+  WF --> YTApi
+  Hono -->|OAuth| Google
+
+  %% Palette — fill subgraphs with light tint, match stroke to avoid contrast
+  style CLIENTS fill:#f5f8ff,stroke:#4285F4,color:#0b2a66
+  style WEB     fill:#f7f7f7,stroke:#111111,color:#111111
+  style API     fill:#fff4ea,stroke:#F38020,color:#6b2b00
+  style DATA    fill:#effdf6,stroke:#00A877,color:#00543a
+  style AI      fill:#f5f0ff,stroke:#8B5CF6,color:#3d1f7a
+
+  classDef vercel fill:#111111,color:#ffffff,stroke:#111111
+  classDef cf     fill:#F38020,color:#ffffff,stroke:#F38020
+  classDef db     fill:#00E5A0,color:#00362a,stroke:#00A877
+  classDef ai     fill:#8B5CF6,color:#ffffff,stroke:#8B5CF6
+  classDef ext    fill:#4285F4,color:#ffffff,stroke:#4285F4
+  classDef actor  fill:#ffffff,color:#222222,stroke:#999999
+
+  class Browser,Ext,Agent actor
+  class NextApp,NextRewrite vercel
+  class Hono,WF cf
+  class PG,Redis db
+  class WAI ai
+  class Google,YTApi ext

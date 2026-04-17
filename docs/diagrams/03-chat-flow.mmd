@@ -1,0 +1,100 @@
+sequenceDiagram
+  autonumber
+
+  actor U as User
+  participant CV as ChatView
+  participant UCS as useChatSession
+  participant V as Vercel rewrite
+  participant W as Worker /api/chat
+  participant AM as auth + rate limit
+  participant LLM as Workers AI (Qwen3-30B)
+  participant EMB as Workers AI (EmbeddingGemma)
+  participant PG as Neon pgvector
+  participant DB as Neon (Drizzle)
+
+  U->>CV: types question
+  CV->>UCS: sendMessage
+  UCS->>V: POST /api/chat (cookie)
+  V->>W: proxied
+
+  W->>AM: middleware chain
+  AM-->>W: userId
+  W->>W: parse body, extract last user msg<br/>validate ≤1000 chars
+
+  alt short / conversational
+    W->>LLM: streamText (system=conversational, 256 tok)
+    LLM-->>UCS: token stream
+  else full RAG pipeline
+
+    rect rgba(139,92,246,0.12)
+    note over W,LLM: HyDE — hypothetical answer
+    W->>LLM: generateText (2-3 sentences, 120 tok)
+    LLM-->>W: hypothetical doc
+    end
+
+    rect rgba(0,229,160,0.12)
+    note over W,EMB: Query embedding
+    W->>EMB: embed(hypo ?? question)
+    EMB-->>W: float[768] L2-normalized
+    end
+
+    rect rgba(243,128,32,0.12)
+    note over W,PG: Step 1 — vector search (topK=8)
+    W->>PG: UNION items + item_chunks<br/>cosine, GROUP BY item_id
+    PG-->>W: seedIds + scores
+    alt zero matches
+      W-->>UCS: 404 no items
+    end
+    end
+
+    rect rgba(0,229,160,0.12)
+    note over W,DB: Step 2 — fetch seed items + tags (parallel)
+    par
+      W->>DB: seed items
+      DB-->>W: items
+    and
+      W->>DB: seed tags
+      DB-->>W: tagsByItem
+    end
+    end
+
+    rect rgba(0,229,160,0.12)
+    note over W,DB: Step 3 — tag-graph hop
+    W->>DB: items sharing seed tags (limit 8)
+    DB-->>W: graphItems
+    end
+
+    rect rgba(139,92,246,0.12)
+    note over W: Step 4 — CRAG scoring
+    W->>W: keyword hits / total, keep ≥0.15
+    alt fewer than 2 pass
+      W->>W: rewriteQuery (keyword-only)
+      W->>EMB: re-embed
+      W->>PG: re-search (limit 5)
+      W->>DB: fetch + re-score
+    end
+    W->>W: sort, slice top 10
+    end
+
+    rect rgba(139,92,246,0.12)
+    note over W,LLM: Step 5 — build prompt + stream
+    W->>LLM: streamText (system + numbered context, 2048 tok)
+    end
+
+    rect rgba(243,128,32,0.12)
+    note over W,UCS: Step 6 — UI message stream
+    W-->>UCS: createUIMessageStreamResponse
+    loop each contextItem (≤10)
+      W-->>UCS: source-url event
+    end
+    LLM-->>W: token deltas
+    W-->>UCS: text-delta events
+    end
+
+    LLM->>W: onFinish(usage)
+    W->>DB: usage_events (chat)
+  end
+
+  UCS-->>CV: messages updated
+  CV->>CV: ReactMarkdown + SourcesList
+  U->>CV: reads answer + citations

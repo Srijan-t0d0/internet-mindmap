@@ -13,7 +13,31 @@ function App() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    getApiKey().then((k) => { if (k) setHasKey(true); });
+    // Validate the stored token against the server on every popup open.
+    // Without this, signing out from the web app (or a server-side session
+    // expiry) leaves a stale token in chrome.storage.local and the popup
+    // keeps claiming "Connected".
+    (async () => {
+      const k = await getApiKey();
+      if (!k) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/get-session`, {
+          headers: { Authorization: `Bearer ${k}` },
+        });
+        const session = res.ok ? await res.json().catch(() => null) : null;
+        if (session?.user) {
+          setHasKey(true);
+        } else {
+          // Token is dead — clear local state so the sign-in UI shows.
+          await setApiKey("");
+          setHasKey(false);
+        }
+      } catch {
+        // Network failure — optimistically trust the cached token so the
+        // user isn't falsely signed out when offline.
+        setHasKey(true);
+      }
+    })();
     getUserEmail().then((e) => { if (e) setEmail(e); });
 
     // Listen for the content script completing auth in the background tab
@@ -77,6 +101,16 @@ function App() {
 
   async function handleSignOut() {
     stopPolling();
+    // Revoke the session server-side so the bearer token stops working
+    // everywhere (not just on this device). Fire-and-forget — we clear
+    // local state regardless.
+    const k = await getApiKey();
+    if (k) {
+      fetch(`${API_BASE}/api/auth/sign-out`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${k}` },
+      }).catch(() => {});
+    }
     await setApiKey("");
     setHasKey(false);
     setSigning(false);

@@ -33,6 +33,10 @@ export function createAuth(env: Env) {
       "http://localhost:3030", // Next.js dev server
       "http://localhost:5173", // Vite dev server (legacy)
       "http://localhost:4173", // Vite preview (legacy)
+      // Browser extension origins — wildcard matches any extension ID so
+      // we don't have to hardcode the CRX-signed Chrome ID or Firefox UUID.
+      "chrome-extension://*",
+      "moz-extension://*",
       ...(env.APP_BASE_URL ? [env.APP_BASE_URL] : []),
       ...(env.BETTER_AUTH_URL ? [env.BETTER_AUTH_URL] : []),
     ],

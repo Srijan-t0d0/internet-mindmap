@@ -23,8 +23,8 @@ export default defineContentScript({
       <body style="font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#faf9f7">
         <div style="text-align:center">
           ${token
-            ? `<p style="font-size:1.1rem;color:#4a9e6b;font-weight:500">✓ Connected to Internet Mindmap</p>
-               <p style="color:#888;font-size:.9rem">You can close this tab.</p>`
+            ? `<p style="font-size:1.1rem;color:#4a9e6b;font-weight:500">✓ Successful! You can close this page now.</p>
+               <p style="color:#888;font-size:.9rem">Your extension is signed in and ready.</p>`
             : `<p style="font-size:1.1rem;color:#dc5050;font-weight:500">Authentication failed</p>
                <p style="color:#888;font-size:.9rem">Please try again from the extension.</p>`
           }
