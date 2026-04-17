@@ -25,9 +25,10 @@ export class CloudflareLLMProvider implements LLMProvider {
     title: string,
     content: string,
     sourceType: string,
-    notes?: string
+    notes?: string,
+    existingTags?: string[]
   ): Promise<TagsAndSummary> {
-    const prompt = buildTaggingPrompt(title, content, sourceType, notes);
+    const prompt = buildTaggingPrompt(title, content, sourceType, notes, existingTags);
     const workersai = createWorkersAI({ binding: this.ai });
 
     const { object, usage } = await generateObject({

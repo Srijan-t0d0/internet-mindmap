@@ -5,25 +5,14 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 # Better Auth baseURL — the web app origin (Next.js), NOT the Worker URL.
-# OAuth callbacks are routed through the Next.js proxy (/api/auth/*), so the
-# callback URL sent to Google must be the Next.js origin. This also ensures
-# session cookies are set on the web app domain, not the Worker domain.
-# Note: Better Auth's getBaseURL() auto-appends basePath ("/api/auth").
 BETTER_AUTH_URL = "https://internet-mindmap.vercel.app"
 # Web app URL — used for post-auth redirects and trusted origins.
 APP_BASE_URL = "https://internet-mindmap.vercel.app"
-VECTOR_PROVIDER = "vectorize"
 
-[[d1_databases]]
-binding = "DB"
-database_name = "internet-mindmap"
-database_id = "ef4d0900-8385-4849-838c-989a8276f593"
-migrations_dir = "drizzle"
-
-[[vectorize]]
-binding = "VECTORIZE"
-index_name = "internet-mindmap-embeddings"
-remote = true
+# DATABASE_URL is set as a Worker secret (not a var — keeps connection string out of source):
+#   wrangler secret put DATABASE_URL
+# Paste your Neon pooled connection string:
+#   postgres://user:pass@ep-xxx.neon.tech/neondb?sslmode=require
 
 [ai]
 binding = "AI"

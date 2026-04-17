@@ -1,26 +1,19 @@
 {
   "version": "7",
-  "dialect": "sqlite",
+  "dialect": "postgresql",
   "entries": [
     {
       "idx": 0,
-      "version": "6",
-      "when": 1775496327504,
-      "tag": "0000_0000_baseline",
+      "version": "7",
+      "when": 1776429937085,
+      "tag": "0000_remarkable_madame_hydra",
       "breakpoints": true
     },
     {
       "idx": 1,
-      "version": "6",
-      "when": 1775496339286,
-      "tag": "0001_add_usage_events",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "6",
-      "when": 1775501989399,
-      "tag": "0002_natural_madrox",
+      "version": "7",
+      "when": 1776429965664,
+      "tag": "0001_embedding_plumbing",
       "breakpoints": true
     }
   ]

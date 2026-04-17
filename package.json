@@ -13,7 +13,7 @@
     "deploy:api": "pnpm --filter @internet-mindmap/api deploy",
     "db:generate": "pnpm --filter @internet-mindmap/api db:generate",
     "db:migrate": "pnpm --filter @internet-mindmap/api db:migrate",
-    "db:migrate:remote": "pnpm --filter @internet-mindmap/api db:migrate:remote"
+    "db:studio": "pnpm --filter @internet-mindmap/api db:studio"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

@@ -1,11 +1,11 @@
 import { Hono } from "hono";
-import { drizzle } from "drizzle-orm/d1";
-import { eq, sql, and, inArray } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import type { Env, Variables } from "../bindings";
-import { CloudflareEmbeddingProvider } from "../ai/embeddings/cloudflare";
-import { createVectorStore } from "../vector-store";
+import { getDb } from "../db/client";
+import { buildEmbeddingRegistry } from "../ai/embeddings/registry";
+import { vectorSearch, toVectorLiteral } from "../lib/vector-search";
 import * as schema from "../db/schema";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>()
@@ -33,33 +33,43 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
         return c.json({ error: "Query too long (max 1000 characters)" }, 400);
       }
 
-      const embedder = new CloudflareEmbeddingProvider(c.env.AI);
-      const queryEmbedding = await embedder.embed(query);
+      // Query is embedded by the ACTIVE provider — the one that owns the
+      // vectors currently in items.embedding / item_chunks.embedding.
+      // During a migration (shadow provider writing to its own tables),
+      // this would fan out across providers and merge results. One model today.
+      const registry = buildEmbeddingRegistry(c.env);
+      const embedder = registry.active();
+      const [queryEmbedding] = await embedder.embed([
+        { modality: "text", content: query },
+      ]);
+      const embeddingLiteral = toVectorLiteral(queryEmbedding);
 
-      // Search vectors
-      const vectors = createVectorStore(c.env);
-      const filter: Record<string, string> = {};
-      if (sourceType) filter.source_type = sourceType;
-      filter.user_id = userId;
+      const db = getDb(c.env);
 
-      const vectorResults = await vectors.query(queryEmbedding, {
-        topK: limit,
-        filter: Object.keys(filter).length > 0 ? filter : undefined,
-      });
+      // pgvector UNION search: doc-level + chunk-level, dedup by MAX(score)
+      const matches = await vectorSearch(db, embeddingLiteral, limit, userId);
 
-      if (vectorResults.matches.length === 0) {
+      if (matches.length === 0) {
         return c.json({ items: [], query, count: 0 }, 200);
       }
 
-      const matchIds = vectorResults.matches.map((m) => m.id);
-      const scoreMap = new Map(vectorResults.matches.map((m) => [m.id, m.score]));
+      const matchIds = matches.map((m) => m.item_id);
+      const scoreMap = new Map(matches.map((m) => [m.item_id, m.score]));
 
-      // Fetch items from D1
-      const db = drizzle(c.env.DB);
+      // Fetch items from Neon
+      let itemConditions = [
+        inArray(schema.items.id, matchIds),
+        eq(schema.items.userId, userId),
+      ] as ReturnType<typeof eq>[];
+
+      if (sourceType) {
+        itemConditions.push(eq(schema.items.sourceType, sourceType as typeof schema.items.$inferSelect.sourceType));
+      }
+
       const matchedItems = await db
         .select()
         .from(schema.items)
-        .where(and(inArray(schema.items.id, matchIds), eq(schema.items.userId, userId)));
+        .where(and(...itemConditions));
 
       // Fetch tags for matched items
       const itemTagRows = await db
@@ -79,7 +89,6 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
         tagsByItem.set(row.itemId, existing);
       }
 
-      // Filter by tag if specified
       let results = matchedItems.map((item) => ({
         id: item.id,
         url: item.url,
@@ -98,7 +107,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
         description: item.description,
         site_name: item.siteName,
         notes: item.notes,
-        similarity: scoreMap.get(item.id) || 0,
+        similarity: scoreMap.get(item.id) ?? 0,
         created_at: item.createdAt,
         updated_at: item.updatedAt,
       }));
@@ -107,7 +116,6 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
         results = results.filter((r) => r.tags.includes(tag));
       }
 
-      // Sort by similarity desc
       results.sort((a, b) => b.similarity - a.similarity);
 
       return c.json({ items: results, query, count: results.length }, 200);

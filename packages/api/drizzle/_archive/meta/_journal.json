@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1775496327504,
+      "tag": "0000_0000_baseline",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1775496339286,
+      "tag": "0001_add_usage_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1775501989399,
+      "tag": "0002_natural_madrox",
+      "breakpoints": true
+    }
+  ]
+}

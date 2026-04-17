@@ -13,6 +13,7 @@ import tagsRoute from "./routes/tags";
 import agentRoute from "./routes/agent";
 import importRoute from "./routes/import";
 import usageRoute from "./routes/usage";
+import adminRoute from "./routes/admin";
 
 export { ProcessItemWorkflow } from "./workflows/process-item";
 
@@ -77,6 +78,7 @@ const routes = app
   .route("/api/agent", agentRoute)
   .route("/api/import", importRoute)
   .route("/api/usage", usageRoute)
+  .route("/api/admin", adminRoute)
   .get("/", (c) => c.json({ status: "ok", service: "internet-mindmap-api" }, 200));
 
 export type AppType = typeof routes;

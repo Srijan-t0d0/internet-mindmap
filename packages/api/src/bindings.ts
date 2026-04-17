@@ -1,8 +1,7 @@
 import type { Auth } from "./lib/auth";
 
 export interface Env {
-  DB: D1Database;
-  VECTORIZE?: VectorizeIndex;
+  DATABASE_URL: string;
   AI: Ai;
   PROCESS_ITEM: Workflow;
   // Better Auth
@@ -13,13 +12,13 @@ export interface Env {
   APP_BASE_URL: string;    // Web app URL — used for post-auth redirects & trusted origins
   // Legacy agent token (external AI agents)
   AGENT_API_TOKEN: string;
-  VECTOR_PROVIDER?: string; // "d1" | "vectorize" | "upstash" — defaults to "d1"
-  // Upstash Vector (required when VECTOR_PROVIDER="upstash")
-  UPSTASH_VECTOR_REST_URL?: string;
-  UPSTASH_VECTOR_REST_TOKEN?: string;
   // Upstash Redis (rate limiting)
   UPSTASH_REDIS_REST_URL?: string;
   UPSTASH_REDIS_REST_TOKEN?: string;
+  // Embedding provider selection (see ai/embeddings/registry.ts)
+  // Default: "gemma-768-v1" active, no shadow.
+  EMBEDDING_ACTIVE?: string;
+  EMBEDDING_SHADOW?: string;
 }
 
 export interface Variables {

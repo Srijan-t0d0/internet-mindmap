@@ -1,11 +1,11 @@
 import { Hono } from "hono";
-import { drizzle } from "drizzle-orm/d1";
 import { eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import type { Env, Variables } from "../bindings";
-import { CloudflareEmbeddingProvider } from "../ai/embeddings/cloudflare";
-import { createVectorStore } from "../vector-store";
+import { getDb } from "../db/client";
+import { buildEmbeddingRegistry } from "../ai/embeddings/registry";
+import { vectorSearch, toVectorLiteral } from "../lib/vector-search";
 import * as schema from "../db/schema";
 
 // Agent keeps unscoped access — it uses userId="agent" (not a real user).
@@ -31,20 +31,24 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
         return c.json({ error: "query is required" }, 400);
       }
 
-      const embedder = new CloudflareEmbeddingProvider(c.env.AI);
-      const queryEmbedding = await embedder.embed(query);
+      const embedder = buildEmbeddingRegistry(c.env).active();
+      const [queryEmbedding] = await embedder.embed([
+        { modality: "text", content: query },
+      ]);
+      const embeddingLiteral = toVectorLiteral(queryEmbedding);
 
-      const vectors = createVectorStore(c.env);
-      const vectorResults = await vectors.query(queryEmbedding, { topK: limit });
+      const db = getDb(c.env);
 
-      if (vectorResults.matches.length === 0) {
+      // Global search — no userId filter (intentional: agent searches all users)
+      const matches = await vectorSearch(db, embeddingLiteral, limit);
+
+      if (matches.length === 0) {
         return c.json({ items: [] }, 200);
       }
 
-      const matchIds = vectorResults.matches.map((m) => m.id);
-      const scoreMap = new Map(vectorResults.matches.map((m) => [m.id, m.score]));
+      const matchIds = matches.map((m) => m.item_id);
+      const scoreMap = new Map(matches.map((m) => [m.item_id, m.score]));
 
-      const db = drizzle(c.env.DB);
       const items = await db
         .select()
         .from(schema.items)
@@ -75,7 +79,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
         tags: (tagsByItem.get(item.id) || [])
           .sort((a, b) => a.position - b.position)
           .map((t) => t.name),
-        similarity_score: scoreMap.get(item.id) || 0,
+        similarity_score: scoreMap.get(item.id) ?? 0,
       }));
 
       // Filter by tags if specified

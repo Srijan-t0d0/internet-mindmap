@@ -1,11 +1,11 @@
 import { Hono } from "hono";
-import { drizzle } from "drizzle-orm/d1";
 import { eq, and, inArray } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import type { SourceType } from "@internet-mindmap/shared";
 import type { Env, Variables } from "../bindings";
+import { getDb } from "../db/client";
 import * as schema from "../db/schema";
 
 function parseBookmarksHtml(html: string): { url: string; title: string }[] {
@@ -48,7 +48,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
       const batch = bookmarks.slice(0, 500);
       const capped = bookmarks.length > 500;
 
-      const db = drizzle(c.env.DB);
+      const db = getDb(c.env);
       const userId = c.get("userId");
 
       // Batch duplicate check — single query instead of per-bookmark
@@ -64,7 +64,6 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
 
       // Batch insert all new items
       if (newBookmarks.length > 0) {
-        const now = new Date().toISOString();
         const newItems = newBookmarks.map((bookmark) => ({
           id: uuidv4(),
           url: bookmark.url,
@@ -72,8 +71,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
           sourceType: detectSourceType(bookmark.url),
           userId,
           status: "pending" as const,
-          createdAt: now,
-          updatedAt: now,
+          // createdAt / updatedAt use defaultNow()
         }));
 
         await db.insert(schema.items).values(newItems);

@@ -1,15 +1,14 @@
 import { Hono } from "hono";
-import { drizzle } from "drizzle-orm/d1";
 import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import type { SourceType } from "@internet-mindmap/shared";
 import type { Env, Variables } from "../bindings";
+import { getDb } from "../db/client";
+import * as schema from "../db/schema";
 
 const sourceTypes = ["youtube", "reddit", "twitter", "github", "hackernews", "substack", "blog", "other"] as const;
 const itemStatuses = ["pending", "processing", "ready", "error"] as const;
-import { createVectorStore } from "../vector-store";
-import * as schema from "../db/schema";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>()
   // GET /api/items — list with filters + pagination
@@ -36,12 +35,12 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
       const isRead = query.is_read;
       const userId = c.get("userId");
 
-      const db = drizzle(c.env.DB);
+      const db = getDb(c.env);
 
       // Build conditions
       const conditions = [];
       conditions.push(eq(schema.items.userId, userId));
-      if (sourceType) conditions.push(eq(schema.items.sourceType, sourceType));
+      if (sourceType) conditions.push(eq(schema.items.sourceType, sourceType as SourceType));
       if (status) conditions.push(eq(schema.items.status, status));
       if (isRead !== null && isRead !== undefined) {
         conditions.push(eq(schema.items.isRead, isRead === "true"));
@@ -72,7 +71,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
         .select({ count: sql<number>`count(*)` })
         .from(schema.items)
         .where(where);
-      const total = countResult[0]?.count || 0;
+      const total = Number(countResult[0]?.count ?? 0);
 
       if (itemRows.length === 0) {
         return c.json({ items: [], total, limit, offset }, 200);
@@ -126,13 +125,13 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
   .get("/:id", async (c) => {
     const id = c.req.param("id")!;
     const userId = c.get("userId");
-    const db = drizzle(c.env.DB);
+    const db = getDb(c.env);
 
     const item = await db
       .select()
       .from(schema.items)
       .where(and(eq(schema.items.id, id), eq(schema.items.userId, userId)))
-      .get();
+      .then((rows) => rows[0] ?? null);
 
     if (!item) {
       return c.json({ error: "Item not found" }, 404);
@@ -177,9 +176,9 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
       const id = c.req.param("id")!;
       const userId = c.get("userId");
       const body = c.req.valid("json");
-      const db = drizzle(c.env.DB);
+      const db = getDb(c.env);
 
-      const updates: Partial<typeof schema.items.$inferInsert> = { updatedAt: new Date().toISOString() };
+      const updates: Partial<typeof schema.items.$inferInsert> = { updatedAt: new Date() };
       if (body.is_read !== undefined) updates.isRead = body.is_read;
       if (body.title !== undefined) updates.title = body.title;
 
@@ -210,24 +209,22 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
   .delete("/:id", async (c) => {
     const id = c.req.param("id")!;
     const userId = c.get("userId");
-    const db = drizzle(c.env.DB);
+    const db = getDb(c.env);
 
-    const result = await db
-      .delete(schema.items)
+    const itemRow = await db
+      .select({ id: schema.items.id })
+      .from(schema.items)
       .where(and(eq(schema.items.id, id), eq(schema.items.userId, userId)))
-      .returning({ id: schema.items.id });
+      .then((rows) => rows[0] ?? null);
 
-    if (result.length === 0) {
+    if (!itemRow) {
       return c.json({ error: "Item not found" }, 404);
     }
 
-    // Delete from vector store to prevent ghost results
-    try {
-      const vectors = createVectorStore(c.env);
-      await vectors.deleteByIds([id]);
-    } catch {
-      // Vector delete failure is non-fatal
-    }
+    // Delete item row — item_chunks cascade-deleted automatically via FK
+    await db
+      .delete(schema.items)
+      .where(and(eq(schema.items.id, id), eq(schema.items.userId, userId)));
 
     return c.json({ deleted: true, id }, 200);
   })
@@ -235,13 +232,13 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
   .post("/:id", async (c) => {
     const id = c.req.param("id")!;
     const userId = c.get("userId");
-    const db = drizzle(c.env.DB);
+    const db = getDb(c.env);
 
     const item = await db
       .select()
       .from(schema.items)
       .where(and(eq(schema.items.id, id), eq(schema.items.status, "error"), eq(schema.items.userId, userId)))
-      .get();
+      .then((rows) => rows[0] ?? null);
 
     if (!item) {
       return c.json({ error: "Item not found or not in error state" }, 404);
@@ -252,7 +249,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
       .set({
         status: "pending",
         lastError: null,
-        updatedAt: new Date().toISOString(),
+        updatedAt: new Date(),
       })
       .where(eq(schema.items.id, id));
 

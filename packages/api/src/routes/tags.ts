@@ -1,11 +1,11 @@
 import { Hono } from "hono";
-import { drizzle } from "drizzle-orm/d1";
 import { sql, desc, eq } from "drizzle-orm";
 import type { Env, Variables } from "../bindings";
+import { getDb } from "../db/client";
 import * as schema from "../db/schema";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>().get("/", async (c) => {
-  const db = drizzle(c.env.DB);
+  const db = getDb(c.env);
   const userId = c.get("userId");
 
   const result = await db

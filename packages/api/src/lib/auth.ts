@@ -1,14 +1,14 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { bearer } from "better-auth/plugins";
-import { drizzle } from "drizzle-orm/d1";
+import { getDb } from "../db/client";
 import * as schema from "../db/schema";
 import type { Env } from "../bindings";
 
 export function createAuth(env: Env) {
-  const db = drizzle(env.DB, { schema });
+  const db = getDb(env);
   return betterAuth({
-    database: drizzleAdapter(db, { provider: "sqlite", schema }),
+    database: drizzleAdapter(db, { provider: "pg", schema }),
     secret: env.BETTER_AUTH_SECRET,
     // Must be the API Worker URL — not the web app URL.
     // Better Auth uses this to build callback URLs and validate origins.

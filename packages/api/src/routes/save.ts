@@ -1,10 +1,10 @@
 import { Hono } from "hono";
-import { drizzle } from "drizzle-orm/d1";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import type { Env, Variables } from "../bindings";
+import { getDb } from "../db/client";
 import { recordUsageEvent } from "../lib/usage";
 import * as schema from "../db/schema";
 
@@ -29,9 +29,8 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
       const { url, title, source_type, extractedText, author, published, description, siteName, notes } =
         c.req.valid("json");
 
-      const db = drizzle(c.env.DB);
+      const db = getDb(c.env);
       const id = uuidv4();
-      const now = new Date().toISOString();
       const userId = c.get("userId");
 
       // Upsert: insert or update on URL conflict
@@ -39,7 +38,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
         .select({ id: schema.items.id })
         .from(schema.items)
         .where(and(eq(schema.items.url, url), eq(schema.items.userId, userId)))
-        .get();
+        .then((rows) => rows[0] ?? null);
 
       let itemId: string;
 
@@ -57,7 +56,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
             description: description || null,
             siteName: siteName || null,
             notes: notes || null,
-            updatedAt: now,
+            updatedAt: new Date(),
           })
           .where(eq(schema.items.id, existing.id));
       } else {
@@ -75,13 +74,11 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
           description: description || null,
           siteName: siteName || null,
           notes: notes || null,
-          createdAt: now,
-          updatedAt: now,
         });
       }
 
       // Record save event (fire-and-forget)
-      recordUsageEvent(c.env.DB, {
+      recordUsageEvent(c.env, {
         userId,
         eventType: "save",
         source: "extension",
