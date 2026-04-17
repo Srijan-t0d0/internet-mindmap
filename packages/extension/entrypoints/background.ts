@@ -47,7 +47,7 @@ export default defineBackground(() => {
       try {
         await browser.scripting.executeScript({
           target: { tabId: tab.id },
-          files: ["content-scripts/content.js"],
+          files: ["/content-scripts/content.js"],
         });
       } catch {
         // Already injected or page doesn't allow scripts (chrome://, etc.)

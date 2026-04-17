@@ -16,7 +16,7 @@ export async function saveItem(
 ): Promise<SaveResponse> {
   // If we're in the background service worker, call the API directly.
   // Otherwise (content script / popup), delegate via message passing.
-  if (typeof globalThis.clients !== "undefined") {
+  if ("clients" in globalThis) {
     return saveItemDirect(data);
   }
 

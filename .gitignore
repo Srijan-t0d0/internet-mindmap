@@ -34,3 +34,6 @@ npm-debug.log*
 
 # lock files are committed — pnpm-lock.yaml
 .vercel
+
+# local claude scheduled-task state
+.claude/
