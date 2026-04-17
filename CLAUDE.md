@@ -14,7 +14,8 @@ pnpm dev:api
 # Start the web app (Next.js, separate terminal)
 pnpm dev:web
 
-# Run D1 migrations (local)
+# Run Drizzle migrations against whichever DATABASE_URL is set
+# (one script, one Neon connection string — no "local vs remote" split)
 pnpm db:migrate
 ```
 
@@ -23,13 +24,16 @@ pnpm db:migrate
 - **Monorepo** — pnpm workspaces with 4 packages: `api`, `web`, `shared`, `extension`
 - **Hono on CF Workers** (`packages/api`) — API routes + Workflows
 - **Next.js on Vercel** (`apps/web`) — App Router with Server Components, all views (cards, list, graph, reading list, chat, detail panel)
-- **D1** (SQLite) — items, tags, item_tags
-- **Vectorize** — 768d cosine similarity vector search
-- **Workers AI** — EmbeddingGemma for embeddings, Kimi K2.5 for LLM (tagging, summaries, chat)
-- **Cloudflare Workflows** — background processing pipeline (replaces pg-boss)
-- **Drizzle ORM** — type-safe D1 queries
+- **Neon Postgres + pgvector** — primary store (items, item_chunks, tags, item_tags, embedding_inputs, embedding_jobs, chat_threads, chat_messages, user/session/account, usage_events, apiKey). HNSW indexes for 768d cosine vector search. Accessed via `DATABASE_URL` using `@neondatabase/serverless`. **Migrated off D1 + Vectorize;** schema is `drizzle-orm/pg-core` (see `packages/api/src/db/schema.ts`). Migration runner is a custom script (`packages/api/scripts/migrate.mjs`) because `drizzle-kit migrate` hangs against Neon's WS driver from plain Node.
+- **Workers AI** — EmbeddingGemma for embeddings, Qwen3-30B for LLM (tagging, summaries, chat). Chat uses AI SDK v6 (`streamText` + `createUIMessageStreamResponse`) over `workers-ai-provider`.
+- **Cloudflare Workflows** — background processing pipeline (`PROCESS_ITEM` binding, 5-step ingest)
+- **Drizzle ORM** — type-safe Postgres queries
 - **Better Auth** — session-based auth with Google OAuth (web app), bearer tokens (extension/agents)
 - **Browser Extension** (`packages/extension`) — Chrome MV3 via WXT, React popup + side panel, TypeScript, Readability extraction
+
+### Chat state
+
+The `/api/chat` route is **stateless** — only the last user message from `body.messages` is used for retrieval, and nothing about the conversation is persisted server-side. The client (`ChatPanel`) owns the thread. `usage_events` records per-call metadata (model, token counts, truncated question) but not assistant output or thread structure. If you need resumable threads, multi-device history, or agent access to prior turns, add `chat_threads` + `chat_messages` tables keyed by `userId` and write on `streamText`'s `onFinish`.
 
 ## Key Commands
 
@@ -37,8 +41,8 @@ pnpm db:migrate
 - `pnpm dev:web` — Next.js dev server (port 3000)
 - `pnpm dev:ext` — WXT dev server (opens Chrome with extension loaded)
 - `pnpm db:generate` — generate Drizzle migration from schema changes
-- `pnpm db:migrate` — apply D1 migrations (local)
-- `pnpm db:migrate:remote` — apply D1 migrations (remote/production)
+- `pnpm db:migrate` — apply migrations against `$DATABASE_URL` (Neon). Use a branch URL for preview, the main URL for prod — the script is environment-agnostic (see `packages/api/scripts/migrate.mjs`).
+- `pnpm db:studio` — Drizzle Studio against `$DATABASE_URL`
 - `pnpm build` — build all packages
 - `pnpm build:ext` — build extension (output: `packages/extension/.output/chrome-mv3/`)
 - `pnpm typecheck` — typecheck all packages
@@ -80,12 +84,12 @@ packages/
 ## API Routes
 
 - `POST /api/save` — save a URL (extension/agent auth)
-- `GET /api/search?q=` — semantic search (embed → Vectorize → D1)
+- `GET /api/search?q=` — semantic search (embed → pgvector UNION query over `items` + `item_chunks`)
 - `GET /api/items` — list/filter items with pagination
 - `GET /api/items/:id` — get single item
 - `PATCH /api/items/:id` — update item (read status, title)
 - `POST /api/items/:id` — retry failed item
-- `DELETE /api/items/:id` — delete item (also removes from Vectorize)
+- `DELETE /api/items/:id` — delete item (cascades to `item_chunks`, `embedding_inputs`, `embedding_jobs`, `item_tags`)
 - `POST /api/chat` — streaming RAG chat with knowledge base
 - `POST /api/agent/search` — agent API (agent token only)
 - `POST /api/import` — bulk Chrome bookmark import
@@ -98,12 +102,15 @@ packages/
 - **External AI agents**: `AGENT_API_TOKEN` bearer token (Worker secret)
 - `API_WORKER_URL` env var required on Vercel (defaults to `http://localhost:8787` for local dev)
 
-## CF Bindings
+## CF Bindings & Env
 
-- `DB` — D1 database
-- `VECTORIZE` — Vectorize index (768d, cosine)
 - `AI` — Workers AI binding
-- `PROCESS_ITEM` — Workflow binding
+- `PROCESS_ITEM` — Cloudflare Workflow binding (ingest pipeline)
+- `DATABASE_URL` — Postgres connection string (pgvector extension required)
+- `BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `BETTER_AUTH_URL`, `APP_BASE_URL` — Better Auth
+- `AGENT_API_TOKEN` — legacy bearer token for external agents
+- `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` — rate limiting (optional)
+- `EMBEDDING_ACTIVE` / `EMBEDDING_SHADOW` — embedding provider selection (see `ai/embeddings/registry.ts`)
 
 ## Extension
 

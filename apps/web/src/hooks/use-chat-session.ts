@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
+import { DefaultChatTransport, type UIMessage } from "ai";
 import type { SourceUrlUIPart } from "ai";
 
 // All /api/* calls go through the Next.js route handler proxy (same-origin).
 const API_BASE = "";
+const THREAD_ID_KEY = "im.currentThreadId";
 
 function getHeaders(): Record<string, string> {
   const h: Record<string, string> = {};
@@ -22,67 +23,181 @@ const chatTransport = new DefaultChatTransport({
   headers: getHeaders,
 });
 
+// Generate a client-side thread id. We use crypto.randomUUID() when
+// available and fall back to a timestamp + random suffix. The server
+// accepts any stable string — it's just a row key.
+function newThreadId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `t-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+// Load a thread's saved messages in AI SDK UIMessage shape. Returns an
+// empty array on any failure (404 for a brand-new id is expected).
+async function loadThreadMessages(threadId: string): Promise<UIMessage[]> {
+  const res = await fetch(`${API_BASE}/api/threads/${threadId}`, {
+    credentials: "include",
+    headers: getHeaders(),
+  });
+  if (!res.ok) return [];
+  const data = (await res.json()) as { messages?: UIMessage[] };
+  return data.messages ?? [];
+}
+
 /**
  * Shared chat session logic used by ChatView.
- * Encapsulates useChat setup, input state, confirm-clear flow, and message helpers.
+ *
+ * Persistence:
+ * - A thread id is tracked in localStorage so refreshes resume the same
+ *   conversation. `useChat({ id })` propagates it to the server via
+ *   DefaultChatTransport's default body `{ messages, id }`.
+ * - On mount we fetch prior messages for that id and hand them to
+ *   `useChat({ messages: initial })`.
+ * - The server writes on `onFinish` inside `createUIMessageStream`.
+ * - "New chat" mints a fresh thread id and clears the message list.
  */
 export function useChatSession() {
   const [input, setInput] = useState("");
   const [confirmClear, setConfirmClear] = useState(false);
+  const [threadId, setThreadId] = useState<string | null>(null);
+  const [initialMessages, setInitialMessages] = useState<UIMessage[]>([]);
+  const [hydrated, setHydrated] = useState(false);
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Resolve (or mint) the thread id once on mount, then hydrate history.
+  // We only render the <ChatView /> body after this resolves so
+  // `useChat({ id })` doesn't mount with a stale id and then swap.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const stored =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem(THREAD_ID_KEY)
+          : null;
+      const id = stored ?? newThreadId();
+      if (!stored && typeof window !== "undefined") {
+        window.localStorage.setItem(THREAD_ID_KEY, id);
+      }
+      const history = stored ? await loadThreadMessages(id) : [];
+      if (cancelled) return;
+      setThreadId(id);
+      setInitialMessages(history);
+      setHydrated(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Key useChat on the thread id so switching threads fully remounts the
+  // underlying message store (AI SDK keys its internal state on `id`).
   const { messages, sendMessage, status, error, clearError, stop, setMessages } = useChat({
+    id: threadId ?? undefined,
+    messages: initialMessages,
     transport: chatTransport,
     onError: (err) => console.error("[chat]", err),
   });
 
   const isStreaming = status === "streaming" || status === "submitted";
 
-  function getMessageText(msg: (typeof messages)[number]): string {
-    return msg.parts
-      .filter((p): p is { type: "text"; text: string } => p.type === "text")
-      .map((p) => p.text)
-      .join("");
-  }
+  const getMessageText = useCallback(
+    (msg: (typeof messages)[number]): string =>
+      msg.parts
+        .filter((p): p is { type: "text"; text: string } => p.type === "text")
+        .map((p) => p.text)
+        .join(""),
+    []
+  );
 
-  function getMessageSources(msg: (typeof messages)[number]): SourceUrlUIPart[] {
-    return msg.parts.filter(
-      (p): p is SourceUrlUIPart => p.type === "source-url"
-    );
-  }
+  const getMessageSources = useCallback(
+    (msg: (typeof messages)[number]): SourceUrlUIPart[] =>
+      msg.parts.filter((p): p is SourceUrlUIPart => p.type === "source-url"),
+    []
+  );
 
-  function handleSubmit(e?: React.FormEvent) {
-    e?.preventDefault();
-    const text = input.trim();
-    if (!text || isStreaming) return;
-    setInput("");
-    sendMessage({ text });
-  }
+  const handleSubmit = useCallback(
+    (e?: React.FormEvent) => {
+      e?.preventDefault();
+      const text = input.trim();
+      if (!text || isStreaming) return;
+      setInput("");
+      sendMessage({ text });
+    },
+    [input, isStreaming, sendMessage]
+  );
 
-  function handleClear() {
+  // "New chat": mint a fresh thread id, clear local messages, persist id.
+  // Next send hits the server with the new id and creates a new row.
+  const startNewThread = useCallback(() => {
+    const id = newThreadId();
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(THREAD_ID_KEY, id);
+    }
+    setInitialMessages([]);
+    setMessages([]);
+    setThreadId(id);
+  }, [setMessages]);
+
+  const handleClear = useCallback(() => {
     if (confirmClear) {
       if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
       setConfirmClear(false);
-      setMessages([]);
+      startNewThread();
     } else {
       setConfirmClear(true);
       confirmTimerRef.current = setTimeout(() => setConfirmClear(false), 3000);
     }
-  }
+  }, [confirmClear, startNewThread]);
 
-  return {
-    messages,
-    input,
-    setInput,
-    isStreaming,
-    error,
-    clearError,
-    stop,
-    confirmClear,
-    handleSubmit,
-    handleClear,
-    getMessageText,
-    getMessageSources,
-    sendMessage,
-  };
+  // Switch to an existing thread (e.g. from a sidebar list).
+  const switchThread = useCallback(async (id: string) => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(THREAD_ID_KEY, id);
+    }
+    const history = await loadThreadMessages(id);
+    setInitialMessages(history);
+    setMessages(history);
+    setThreadId(id);
+  }, [setMessages]);
+
+  return useMemo(
+    () => ({
+      threadId,
+      hydrated,
+      messages,
+      input,
+      setInput,
+      isStreaming,
+      error,
+      clearError,
+      stop,
+      confirmClear,
+      handleSubmit,
+      handleClear,
+      getMessageText,
+      getMessageSources,
+      sendMessage,
+      startNewThread,
+      switchThread,
+    }),
+    [
+      threadId,
+      hydrated,
+      messages,
+      input,
+      isStreaming,
+      error,
+      clearError,
+      stop,
+      confirmClear,
+      handleSubmit,
+      handleClear,
+      getMessageText,
+      getMessageSources,
+      sendMessage,
+      startNewThread,
+      switchThread,
+    ]
+  );
 }

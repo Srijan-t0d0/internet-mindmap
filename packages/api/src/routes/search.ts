@@ -95,7 +95,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
         title: item.title,
         source_type: item.sourceType,
         summary: item.summary,
-        key_passages: item.keyPassages ? JSON.parse(item.keyPassages) : null,
+        key_passages: item.keyPassages ?? null,
         tags: (tagsByItem.get(item.id) || [])
           .sort((a, b) => a.position - b.position)
           .map((t) => t.name),

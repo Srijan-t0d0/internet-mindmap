@@ -252,7 +252,7 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
           .update(schema.items)
           .set({
             summary: llmResult.summary,
-            keyPassages: JSON.stringify(llmResult.keyPassages),
+            keyPassages: llmResult.keyPassages,
             chunkCount: chunks.length,
             status: "ready",
             lastError: null,

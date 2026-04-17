@@ -35,7 +35,7 @@ export async function recordUsageEvent(
     inputTokens,
     outputTokens,
     totalTokens,
-    metadata: event.metadata ? JSON.stringify(event.metadata) : null,
+    metadata: event.metadata ?? null,
   });
 }
 

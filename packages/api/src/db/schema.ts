@@ -8,8 +8,10 @@ import {
   primaryKey,
   uniqueIndex,
   vector,
+  jsonb,
 } from "drizzle-orm/pg-core";
 import type { EmbeddingModality, SourceType } from "@internet-mindmap/shared";
+import type { UIMessagePart } from "ai";
 
 type ItemStatus = "pending" | "processing" | "ready" | "error";
 
@@ -24,7 +26,7 @@ export const items = pgTable(
     sourceType: text("source_type").$type<SourceType>().notNull(),
     rawContent: text("raw_content"),
     summary: text("summary"),
-    keyPassages: text("key_passages"), // JSON array string
+    keyPassages: jsonb("key_passages").$type<string[]>(),
     chunkCount: integer("chunk_count").notNull().default(0),
     status: text("status").$type<ItemStatus>().notNull().default("pending"),
     isRead: boolean("is_read").notNull().default(false),
@@ -235,13 +237,56 @@ export const usageEvents = pgTable(
     inputTokens: integer("input_tokens").notNull().default(0),
     outputTokens: integer("output_tokens").notNull().default(0),
     totalTokens: integer("total_tokens").notNull().default(0),
-    metadata: text("metadata"),
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
     createdAt: timestamp("created_at").notNull().defaultNow(),
   },
   (table) => [
     index("usage_events_user_id_idx").on(table.userId),
     index("usage_events_user_type_idx").on(table.userId, table.eventType),
     index("usage_events_user_date_idx").on(table.userId, table.createdAt),
+  ]
+);
+
+// ── Chat history ───────────────────────────────────────────────────────────
+// Threads + messages for the RAG chat UI. Messages are stored in AI SDK
+// `UIMessage` shape (id + role + parts[] + optional metadata) so they can
+// be handed back to `useChat({ messages: initial })` unchanged.
+
+export const chatThreads = pgTable(
+  "chat_threads",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    title: text("title"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("chat_threads_user_id_idx").on(table.userId),
+    index("chat_threads_user_updated_idx").on(table.userId, table.updatedAt),
+  ]
+);
+
+export const chatMessages = pgTable(
+  "chat_messages",
+  {
+    id: text("id").primaryKey(),
+    threadId: text("thread_id")
+      .notNull()
+      .references(() => chatThreads.id, { onDelete: "cascade" }),
+    role: text("role").$type<"user" | "assistant" | "system">().notNull(),
+    // AI SDK UIMessage parts — stored as jsonb so we can query/index
+    // into parts later (e.g. filter messages citing a given source).
+    parts: jsonb("parts").$type<UIMessagePart<never, never>[]>().notNull(),
+    // Message-level metadata (model, usage, etc.). Optional.
+    metadata: jsonb("metadata").$type<Record<string, unknown>>(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (table) => [
+    index("chat_messages_thread_id_idx").on(table.threadId),
+    index("chat_messages_thread_created_idx").on(table.threadId, table.createdAt),
   ]
 );
 

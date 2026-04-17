@@ -15,6 +15,20 @@
       "when": 1776429965664,
       "tag": "0001_embedding_plumbing",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1776458908642,
+      "tag": "0002_natural_marvel_zombies",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1776459845233,
+      "tag": "0003_past_luminals",
+      "breakpoints": true
     }
   ]
 }

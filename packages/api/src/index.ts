@@ -9,6 +9,7 @@ import saveRoute from "./routes/save";
 import searchRoute from "./routes/search";
 import itemsRoute from "./routes/items";
 import chatRoute from "./routes/chat";
+import threadsRoute from "./routes/threads";
 import tagsRoute from "./routes/tags";
 import agentRoute from "./routes/agent";
 import importRoute from "./routes/import";
@@ -57,6 +58,7 @@ app.use("/api/save/*", requireAuth);
 app.use("/api/search/*", requireAuth);
 app.use("/api/items/*", requireAuth);
 app.use("/api/chat/*", requireAuth);
+app.use("/api/threads/*", requireAuth);
 app.use("/api/tags/*", requireAuth);
 app.use("/api/agent/*", requireAuth);
 app.use("/api/import/*", requireAuth);
@@ -74,6 +76,7 @@ const routes = app
   .route("/api/search", searchRoute)
   .route("/api/items", itemsRoute)
   .route("/api/chat", chatRoute)
+  .route("/api/threads", threadsRoute)
   .route("/api/tags", tagsRoute)
   .route("/api/agent", agentRoute)
   .route("/api/import", importRoute)

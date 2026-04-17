@@ -15,6 +15,7 @@ const SUGGESTIONS = [
 
 export default function ChatView() {
   const {
+    hydrated,
     messages,
     input,
     setInput,
@@ -29,6 +30,10 @@ export default function ChatView() {
     getMessageText,
     getMessageSources,
   } = useChatSession();
+
+  // Avoid flashing the empty-state suggestions while we hydrate prior
+  // messages from the saved thread on mount.
+  const showEmptyState = hydrated && messages.length === 0;
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -55,7 +60,7 @@ export default function ChatView() {
       {/* Messages area — scrollable, centered */}
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-2xl mx-auto px-6 py-6">
-          {!hasMessages && (
+          {showEmptyState && (
             <div className="flex flex-col items-center justify-center min-h-[60vh] fade-in">
               <div
                 className="w-10 h-10 rounded-full flex items-center justify-center mb-5"

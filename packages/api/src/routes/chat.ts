@@ -1,6 +1,12 @@
 import { Hono } from "hono";
-import { inArray, and, eq, not } from "drizzle-orm";
-import { streamText, createUIMessageStreamResponse, createUIMessageStream } from "ai";
+import { inArray, and, eq, not, sql } from "drizzle-orm";
+import {
+  streamText,
+  createUIMessageStreamResponse,
+  createUIMessageStream,
+  generateId,
+  type UIMessage,
+} from "ai";
 import { createWorkersAI } from "workers-ai-provider";
 import type { Env, Variables } from "../bindings";
 import { getDb } from "../db/client";
@@ -70,12 +76,29 @@ type ScoredItem = RawItem & {
 };
 
 // ── Hono route ────────────────────────────────────────────────────────────────
+// ── Persistence helpers ──────────────────────────────────────────────────
+// Derive a short thread title from the first user message.
+function deriveTitle(text: string): string {
+  const trimmed = text.trim().replace(/\s+/g, " ");
+  return trimmed.length > 60 ? `${trimmed.slice(0, 60).trimEnd()}…` : trimmed;
+}
+
+type IncomingMsg = {
+  id?: string;
+  role: string;
+  content?: string;
+  parts?: { type: string; text?: string; [k: string]: unknown }[];
+  metadata?: unknown;
+};
+
 const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async (c) => {
   const body = await c.req.json<{
-    messages?: { role: string; content: string; parts?: { type: string; text?: string }[] }[];
+    id?: string;
+    messages?: IncomingMsg[];
   }>();
 
-  const lastUserMsg = [...(body.messages || [])].reverse().find((m) => m.role === "user");
+  const incomingMessages = body.messages ?? [];
+  const lastUserMsg = [...incomingMessages].reverse().find((m) => m.role === "user");
   const question = (
     lastUserMsg?.parts?.filter((p) => p.type === "text").map((p) => p.text).join("") ||
     lastUserMsg?.content ||
@@ -87,6 +110,28 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
 
   const userId = c.get("userId");
   const workersai = createWorkersAI({ binding: c.env.AI });
+
+  // ── Thread id: client-supplied or server-generated ──────────────────────
+  // `useChat({ id })` on the client propagates this as `body.id` via
+  // DefaultChatTransport. If missing, we mint a new one so the first
+  // exchange still gets persisted; the client can read it back if needed.
+  const threadId = body.id && typeof body.id === "string" ? body.id : generateId();
+  const db = getDb(c.env);
+
+  // Upsert thread row (no-op on conflict except we bump updated_at).
+  // Title is set on first insert from the first user message; later turns
+  // keep whatever title the thread was created with.
+  await db
+    .insert(schema.chatThreads)
+    .values({
+      id: threadId,
+      userId,
+      title: deriveTitle(question),
+    })
+    .onConflictDoUpdate({
+      target: schema.chatThreads.id,
+      set: { updatedAt: sql`now()` },
+    });
 
   // ── Self-RAG: skip retrieval for purely conversational messages ─────────────
   if (isConversational(question)) {
@@ -137,7 +182,6 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
   }).catch(() => {});
 
   const embeddingLiteral = toVectorLiteral(queryEmbedding);
-  const db = getDb(c.env);
 
   // ── pgvector UNION search — topK=8 to give CRAG more candidates ─────────────
   const matches = await vectorSearch(db, embeddingLiteral, 8, userId);
@@ -312,9 +356,62 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
     },
   });
 
+  // Prevent client-disconnect from skipping onFinish — per AI SDK docs,
+  // result.consumeStream() (no await) removes backpressure so the stream
+  // runs to completion even if the browser tab closes mid-response.
+  result.consumeStream();
+
+  // Cast incoming messages to UIMessage[] for the persistence API.
+  // `originalMessages` is used by onFinish to return the full merged array.
+  const originalMessages = incomingMessages as unknown as UIMessage[];
+
   return createUIMessageStreamResponse({
     stream: createUIMessageStream({
+      originalMessages,
+      onFinish: async ({ messages: finalMessages }) => {
+        // `finalMessages` is the full merged UIMessage[] — prior turns +
+        // the newly streamed assistant message. Upsert all rows idempotently
+        // so re-sends or retries don't duplicate.
+        try {
+          const rows = finalMessages.map((m) => ({
+            id: m.id,
+            threadId,
+            role: m.role as "user" | "assistant" | "system",
+            parts: (m.parts ?? []) as typeof schema.chatMessages.$inferInsert.parts,
+            metadata: (m.metadata ?? null) as typeof schema.chatMessages.$inferInsert.metadata,
+          }));
+          if (rows.length > 0) {
+            await db
+              .insert(schema.chatMessages)
+              .values(rows)
+              .onConflictDoUpdate({
+                target: schema.chatMessages.id,
+                set: {
+                  parts: sql`excluded.parts`,
+                  metadata: sql`excluded.metadata`,
+                },
+              });
+          }
+          // Bump thread updated_at so the sidebar list re-orders.
+          await db
+            .update(schema.chatThreads)
+            .set({ updatedAt: sql`now()` })
+            .where(eq(schema.chatThreads.id, threadId));
+        } catch (err) {
+          console.error("[chat persist]", err);
+        }
+      },
       async execute({ writer }) {
+        // Emit a single `start` part first so sources + text belong to the
+        // same assistant message. Without this, writing source-url parts up
+        // front and then merging result.toUIMessageStream() (which emits its
+        // own start) causes the UI SDK to split them into two messages —
+        // resulting in an empty bubble with sources followed by the real
+        // response bubble.
+        //
+        // We also pin a server-generated messageId so the row we persist
+        // matches the id the client renders.
+        writer.write({ type: "start", messageId: generateId() });
         for (const item of contextItems) {
           writer.write({
             type: "source-url",
@@ -323,10 +420,16 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
             title: item.title ?? undefined,
           });
         }
-        await writer.merge(result.toUIMessageStream());
+        await writer.merge(result.toUIMessageStream({ sendStart: false }));
       },
     }),
-    headers: { "content-encoding": "identity" },
+    headers: {
+      "content-encoding": "identity",
+      // Surface the resolved thread id to the client — useful when the
+      // client didn't supply one and needs to remember which thread this
+      // exchange landed in.
+      "x-thread-id": threadId,
+    },
   });
 });
 
