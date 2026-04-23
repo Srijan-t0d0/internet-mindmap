@@ -6,6 +6,7 @@
  * with data already embedded.
  */
 
+import { cache } from "react";
 import { cookies } from "next/headers";
 import type { SourceType } from "@internet-mindmap/shared";
 import { createServerClient } from "./api-client";
@@ -19,11 +20,7 @@ async function getClient() {
   return createServerClient(cookieHeader);
 }
 
-/**
- * Check the current session via Better Auth's get-session endpoint.
- * Returns the session object or null if not authenticated.
- */
-export async function getSession() {
+export const getSession = cache(async () => {
   const workerUrl = process.env.API_WORKER_URL ?? "http://localhost:8787";
   const cookieStore = await cookies();
   const cookieHeader = cookieStore
@@ -38,22 +35,18 @@ export async function getSession() {
     });
     if (!res.ok) return null;
     const data: { session?: unknown; user?: unknown } = await res.json();
-    // Better Auth returns { session, user } — return null if missing
     return data?.session ? data : null;
   } catch {
     return null;
   }
-}
+});
 
-/**
- * Fetch items with optional filters.
- */
-export async function getItems(params: {
+export const getItems = cache(async (params: {
   source_type?: string | null;
   tag?: string | null;
   is_read?: string | null;
   limit?: number;
-}) {
+}) => {
   const client = await getClient();
   const res = await client.api.items.$get({
     query: {
@@ -67,16 +60,13 @@ export async function getItems(params: {
     throw new Error(`Failed to fetch items: ${res.status}`);
   }
   return res.json();
-}
+});
 
-/**
- * Semantic search across items.
- */
-export async function searchItemsServer(params: {
+export const searchItemsServer = cache(async (params: {
   q: string;
   source_type?: string | null;
   tag?: string | null;
-}) {
+}) => {
   const client = await getClient();
   const res = await client.api.search.$get({
     query: {
@@ -89,16 +79,13 @@ export async function searchItemsServer(params: {
     throw new Error(`Search failed: ${res.status}`);
   }
   return res.json();
-}
+});
 
-/**
- * Fetch all tags with counts.
- */
-export async function getTags() {
+export const getTags = cache(async () => {
   const client = await getClient();
   const res = await client.api.tags.$get({});
   if (!res.ok) {
     throw new Error(`Failed to fetch tags: ${res.status}`);
   }
   return res.json();
-}
+});

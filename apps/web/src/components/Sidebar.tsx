@@ -1,10 +1,12 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import type { Tag, ViewMode } from "@internet-mindmap/shared";
 import { SOURCE_TYPES, SOURCE_LABELS, SOURCE_CSS_COLORS } from "@internet-mindmap/ui";
 import UserMenu from "./UserMenu";
+import { useFilters } from "../hooks/use-filters";
 
 const SOURCE_FILTERS = SOURCE_TYPES
   .filter((key) => key !== "other")
@@ -59,30 +61,27 @@ const EXPLORE_MODES: { key: ViewMode; label: string }[] = [
 interface SidebarProps {
   tags: Tag[];
   itemCount: number;
-  // Explore-only props — omitted when rendering on the /chat page
-  viewMode?: ViewMode;
-  selectedSourceType?: string | null;
-  selectedTag?: string | null;
-  onViewModeChange?: (mode: ViewMode) => void;
-  onSourceTypeChange?: (source: string | null) => void;
-  onTagChange?: (tag: string | null) => void;
 }
 
-export default function Sidebar({
-  tags,
-  itemCount,
-  viewMode,
-  selectedSourceType,
-  selectedTag,
-  onViewModeChange,
-  onSourceTypeChange,
-  onTagChange,
-}: SidebarProps) {
+export default function Sidebar({ tags, itemCount }: SidebarProps) {
   const pathname = usePathname();
-  const router = useRouter();
+  const [filters, setFilters] = useFilters();
+  const { view: viewMode, source: selectedSourceType, tag: selectedTag } = filters;
 
   const isChat = pathname === "/chat";
   const isExplore = !isChat;
+
+  function handleViewModeChange(mode: ViewMode) {
+    setFilters({ view: mode, q: null });
+  }
+
+  function handleSourceTypeChange(source: string | null) {
+    setFilters({ source });
+  }
+
+  function handleTagChange(tag: string | null) {
+    setFilters({ tag });
+  }
 
   return (
     <aside
@@ -107,9 +106,9 @@ export default function Sidebar({
       <nav className="flex-1 px-3 pb-6 space-y-6 overflow-y-auto">
         {/* Top-level page nav */}
         <div className="space-y-0.5">
-          {/* Chat */}
-          <button
-            onClick={() => router.push("/chat")}
+          <Link
+            href="/chat"
+            prefetch
             className="w-full text-left text-sm px-3 py-2 rounded-md transition-all duration-150 flex items-center gap-2.5"
             style={{
               backgroundColor: isChat ? "var(--color-accent-subtle)" : "transparent",
@@ -133,17 +132,11 @@ export default function Sidebar({
             >
               {"\u2318"}J
             </span>
-          </button>
+          </Link>
 
-          {/* Explore */}
-          <button
-            onClick={() => {
-              if (isChat) {
-                router.push("/");
-              } else {
-                onViewModeChange?.("cards");
-              }
-            }}
+          <Link
+            href="/"
+            prefetch
             className="w-full text-left text-sm px-3 py-2 rounded-md transition-all duration-150 flex items-center gap-2.5"
             style={{
               backgroundColor: isExplore ? "var(--color-bg-card)" : "transparent",
@@ -163,7 +156,7 @@ export default function Sidebar({
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
             Explore
-          </button>
+          </Link>
         </div>
 
         {/* Explore sub-navigation — only visible when on an explore view */}
@@ -183,7 +176,7 @@ export default function Sidebar({
                   return (
                     <button
                       key={mode.key}
-                      onClick={() => onViewModeChange?.(mode.key)}
+                      onClick={() => handleViewModeChange(mode.key)}
                       className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-all duration-150 flex items-center gap-2.5"
                       style={{
                         backgroundColor: active ? "var(--color-bg-card)" : "transparent",
@@ -210,7 +203,7 @@ export default function Sidebar({
               </h2>
               <div className="space-y-0.5">
                 <button
-                  onClick={() => onSourceTypeChange?.(null)}
+                  onClick={() => handleSourceTypeChange(null)}
                   className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-all duration-150"
                   style={{
                     backgroundColor: !selectedSourceType ? "var(--color-bg-card)" : "transparent",
@@ -226,7 +219,7 @@ export default function Sidebar({
                   return (
                     <button
                       key={source.key}
-                      onClick={() => onSourceTypeChange?.(active ? null : source.key)}
+                      onClick={() => handleSourceTypeChange(active ? null : source.key)}
                       className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-all duration-150 flex items-center gap-2.5"
                       style={{
                         backgroundColor: active ? "var(--color-bg-card)" : "transparent",
@@ -260,7 +253,7 @@ export default function Sidebar({
                 </h2>
                 <div className="space-y-0.5">
                   <button
-                    onClick={() => onTagChange?.(null)}
+                    onClick={() => handleTagChange(null)}
                     className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-all duration-150"
                     style={{
                       backgroundColor: !selectedTag ? "var(--color-bg-card)" : "transparent",
@@ -276,7 +269,7 @@ export default function Sidebar({
                     return (
                       <button
                         key={tag.id}
-                        onClick={() => onTagChange?.(active ? null : tag.name)}
+                        onClick={() => handleTagChange(active ? null : tag.name)}
                         className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-all duration-150 flex items-center justify-between"
                         style={{
                           backgroundColor: active ? "var(--color-bg-card)" : "transparent",

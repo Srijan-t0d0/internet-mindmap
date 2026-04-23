@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useMemo, lazy, Suspense } from "react";
 import { useRouter } from "next/navigation";
-import type { Item, Tag, ViewMode } from "@internet-mindmap/shared";
-import Sidebar from "./Sidebar";
+import type { Item, ViewMode } from "@internet-mindmap/shared";
 import SearchBar from "./SearchBar";
 import ItemCard from "./ItemCard";
 import DetailPanel from "./DetailPanel";
@@ -13,19 +12,16 @@ import { SOURCE_CSS_COLORS } from "@internet-mindmap/ui";
 
 import { useFilters } from "../hooks/use-filters";
 import { useItemsQuery, type ItemsData } from "../hooks/use-items-query";
-import { useTagsQuery } from "../hooks/use-tags-query";
 import { useRetryItem, useUpdateItem, useDeleteItem } from "../hooks/use-mutations";
 
 interface ItemsShellProps {
   initialItems: Item[];
   initialTotal: number;
-  initialTags: Tag[];
 }
 
 export default function ItemsShell({
   initialItems,
   initialTotal,
-  initialTags,
 }: ItemsShellProps) {
   // ---------------------------------------------------------------------------
   // URL state (nuqs) — single source of truth for all filter params
@@ -80,10 +76,6 @@ export default function ItemsShell({
     return filtered;
   }, [allItems, selectedTag, selectedSource, viewMode, searchQuery]);
 
-  const totalItems = items.length;
-
-  const { data: tags = initialTags } = useTagsQuery(initialTags);
-
   // ---------------------------------------------------------------------------
   // Mutations (React Query) — optimistic updates + cache invalidation
   // ---------------------------------------------------------------------------
@@ -112,22 +104,6 @@ export default function ItemsShell({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [router]);
-
-  // ---------------------------------------------------------------------------
-  // Filter handlers — thin wrappers around nuqs setFilters
-  // ---------------------------------------------------------------------------
-  function handleViewModeChange(mode: ViewMode) {
-    setSearchInput("");
-    setFilters({ view: mode as Exclude<ViewMode, "chat">, q: null });
-  }
-
-  function handleSourceTypeChange(source: string | null) {
-    setFilters({ source });
-  }
-
-  function handleTagChange(tag: string | null) {
-    setFilters({ tag });
-  }
 
   function handleSearch(query: string) {
     if (!query.trim()) {
@@ -172,18 +148,7 @@ export default function ItemsShell({
   // Render
   // ---------------------------------------------------------------------------
   return (
-    <div className="flex h-screen overflow-hidden">
-      <Sidebar
-        tags={tags}
-        viewMode={viewMode}
-        selectedSourceType={selectedSource}
-        selectedTag={selectedTag}
-        onViewModeChange={handleViewModeChange}
-        onSourceTypeChange={handleSourceTypeChange}
-        onTagChange={handleTagChange}
-        itemCount={totalItems}
-      />
-
+    <>
       <main
         className="flex-1 h-screen overflow-y-auto overflow-x-hidden p-6"
         role="main"
@@ -353,6 +318,6 @@ export default function ItemsShell({
           onDelete={handleDelete}
         />
       )}
-    </div>
+    </>
   );
 }
