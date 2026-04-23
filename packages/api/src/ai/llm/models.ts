@@ -15,10 +15,15 @@ import type { Env } from "../../bindings";
  */
 export const DEFAULT_MODELS = {
   synthesis: "@cf/moonshotai/kimi-k2.6",
-  auxiliary: "@cf/openai/gpt-oss-20b",
+  // Auxiliary fans out to contextualize, condense, followups, title. These
+  // all need the model to emit either a JSON array or short structured text.
+  // @cf/openai/gpt-oss-20b via workers-ai-provider was silently failing
+  // (empty output / unparseable JSON — bad enough that contextualize wrote
+  // zero prefixes across every reprocess). Pin to Qwen3-30B which is the
+  // same family we use for tagging and has reliable structured output.
+  auxiliary: "@cf/qwen/qwen3-30b-a3b-fp8",
   // Tagging uses AI SDK generateObject + JSON schema. gpt-oss-20b fails
-  // schema validation (AI_NoObjectGeneratedError) via workers-ai-provider;
-  // Qwen3-30B handles structured output reliably, so keep it here.
+  // schema validation (AI_NoObjectGeneratedError) via workers-ai-provider.
   tagging: "@cf/qwen/qwen3-30b-a3b-fp8",
   reranker: "@cf/baai/bge-reranker-base",
 } as const;
