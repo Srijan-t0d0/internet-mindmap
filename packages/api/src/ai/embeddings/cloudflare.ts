@@ -81,7 +81,13 @@ export class CloudflareEmbeddingProvider implements EmbeddingProvider {
   }
 
   chunkText(text: string): string[] {
-    if (text.length <= CHUNK_SIZE) return [];
+    // Short docs used to return `[]`, which meant no item_chunks rows and
+    // therefore no FTS/BM25 coverage or passage-strip render — short items
+    // were only findable via the doc-level items.embedding vector. Treat
+    // non-empty short docs as a single chunk so hybrid retrieval and the
+    // chat UI's per-passage affordances work uniformly.
+    if (text.length === 0) return [];
+    if (text.length <= CHUNK_SIZE) return [text];
     const chunks: string[] = [];
     let i = 0;
     while (i < text.length) {
