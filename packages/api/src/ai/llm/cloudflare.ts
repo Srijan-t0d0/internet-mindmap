@@ -36,7 +36,10 @@ export class CloudflareLLMProvider implements LLMProvider {
     const { object, usage } = await generateObject({
       model: workersai(this.model),
       schema: tagsAndSummarySchema,
-      prompt,
+      // `/no_think` disables Qwen3's reasoning mode so the output budget is
+      // spent on the JSON object, not <think>…</think> tokens. Without this,
+      // short-content docs fail AI_NoObjectGeneratedError intermittently.
+      prompt: `/no_think\n${prompt}`,
     });
 
     return {
