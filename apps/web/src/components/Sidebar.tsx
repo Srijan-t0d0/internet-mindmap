@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import type { Tag, ViewMode } from "@internet-mindmap/shared";
 import { SOURCE_TYPES, SOURCE_LABELS, SOURCE_CSS_COLORS } from "@internet-mindmap/ui";
 import UserMenu from "./UserMenu";
+import ThreadsList from "./ThreadsList";
 import { useFilters } from "../hooks/use-filters";
 
 const SOURCE_FILTERS = SOURCE_TYPES
@@ -158,6 +159,9 @@ export default function Sidebar({ tags, itemCount }: SidebarProps) {
             Explore
           </Link>
         </div>
+
+        {/* Chat sub-navigation — thread list. Only visible on /chat. */}
+        {isChat && <ThreadsList />}
 
         {/* Explore sub-navigation — only visible when on an explore view */}
         {isExplore && (

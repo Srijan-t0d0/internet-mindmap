@@ -5,6 +5,36 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import type { SourceUrlUIPart } from "ai";
 
+// ── Custom data parts emitted by the chat route. Their shape matches the
+//    server's `writer.write({ type: "data-X", data: ... })` calls. ──────────
+export type ChatPassage = {
+  chunkId: string;
+  itemId: string;
+  url: string;
+  title: string;
+  quote: string;
+  rerankScore: number;
+};
+
+export type ChatRetrievalSummary = {
+  denseCandidates: number;
+  ftsCandidates: number;
+  rerankCandidates: number;
+  rerankKept: number;
+  finalItemCount: number;
+  condensed: string | null;
+};
+
+type DataPart =
+  | { type: "data-passages"; data: { passages: ChatPassage[] } }
+  | { type: "data-retrieval"; data: ChatRetrievalSummary }
+  | { type: "data-followups"; data: { questions: string[] } }
+  | { type: "data-title"; data: { title: string } };
+
+function isDataPart(p: { type: string }): p is DataPart {
+  return p.type.startsWith("data-");
+}
+
 // All /api/* calls go through the Next.js route handler proxy (same-origin).
 const API_BASE = "";
 const THREAD_ID_KEY = "im.currentThreadId";
@@ -101,6 +131,18 @@ export function useChatSession() {
 
   const isStreaming = status === "streaming" || status === "submitted";
 
+  // When the assistant turn finishes, broadcast so other parts of the UI
+  // (sidebar thread list, etc.) can refresh. We fire on ready transitions
+  // because that's when data-title and updated_at land server-side.
+  const prevStatusRef = useRef(status);
+  useEffect(() => {
+    const prev = prevStatusRef.current;
+    if (prev !== "ready" && status === "ready" && messages.length > 0) {
+      window.dispatchEvent(new CustomEvent("chat:threads-changed"));
+    }
+    prevStatusRef.current = status;
+  }, [status, messages.length]);
+
   const getMessageText = useCallback(
     (msg: (typeof messages)[number]): string =>
       msg.parts
@@ -113,6 +155,46 @@ export function useChatSession() {
   const getMessageSources = useCallback(
     (msg: (typeof messages)[number]): SourceUrlUIPart[] =>
       msg.parts.filter((p): p is SourceUrlUIPart => p.type === "source-url"),
+    []
+  );
+
+  // Find the latest data-* part of a given type. Helpful for pieces the
+  // server emits exactly once per assistant turn (passages, retrieval,
+  // followups, title).
+  function findDataPart<T extends DataPart["type"]>(
+    msg: (typeof messages)[number],
+    type: T
+  ): Extract<DataPart, { type: T }> | undefined {
+    for (let i = msg.parts.length - 1; i >= 0; i--) {
+      const p = msg.parts[i] as { type: string };
+      if (isDataPart(p) && p.type === type) {
+        return p as Extract<DataPart, { type: T }>;
+      }
+    }
+    return undefined;
+  }
+
+  const getMessagePassages = useCallback(
+    (msg: (typeof messages)[number]): ChatPassage[] =>
+      findDataPart(msg, "data-passages")?.data.passages ?? [],
+    []
+  );
+
+  const getMessageRetrieval = useCallback(
+    (msg: (typeof messages)[number]): ChatRetrievalSummary | null =>
+      findDataPart(msg, "data-retrieval")?.data ?? null,
+    []
+  );
+
+  const getMessageFollowups = useCallback(
+    (msg: (typeof messages)[number]): string[] =>
+      findDataPart(msg, "data-followups")?.data.questions ?? [],
+    []
+  );
+
+  const getMessageTitle = useCallback(
+    (msg: (typeof messages)[number]): string | null =>
+      findDataPart(msg, "data-title")?.data.title ?? null,
     []
   );
 
@@ -161,6 +243,20 @@ export function useChatSession() {
     setThreadId(id);
   }, [setMessages]);
 
+  // Listen for sidebar-driven thread switches. The sidebar lives in the
+  // shared (app) layout and doesn't have direct access to this hook, so it
+  // dispatches a custom event with the target thread id.
+  useEffect(() => {
+    function handler(e: Event) {
+      const detail = (e as CustomEvent<{ id: string }>).detail;
+      if (detail?.id) {
+        void switchThread(detail.id);
+      }
+    }
+    window.addEventListener("chat:switch-thread", handler);
+    return () => window.removeEventListener("chat:switch-thread", handler);
+  }, [switchThread]);
+
   return useMemo(
     () => ({
       threadId,
@@ -177,6 +273,10 @@ export function useChatSession() {
       handleClear,
       getMessageText,
       getMessageSources,
+      getMessagePassages,
+      getMessageRetrieval,
+      getMessageFollowups,
+      getMessageTitle,
       sendMessage,
       startNewThread,
       switchThread,
@@ -195,6 +295,10 @@ export function useChatSession() {
       handleClear,
       getMessageText,
       getMessageSources,
+      getMessagePassages,
+      getMessageRetrieval,
+      getMessageFollowups,
+      getMessageTitle,
       sendMessage,
       startNewThread,
       switchThread,

@@ -19,6 +19,8 @@ import {
 } from "../lib/vector-search";
 import { rerank } from "../lib/rerank";
 import { condenseQuery, type CondenseTurn } from "../lib/condense";
+import { generateFollowups } from "../lib/followups";
+import { generateThreadTitle } from "../lib/title";
 import { buildChatMessages } from "../ai/llm/prompts";
 import { getModels, DEFAULT_MODELS } from "../ai/llm/models";
 import { recordUsageEvent, estimateEmbeddingTokens } from "../lib/usage";
@@ -468,6 +470,8 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
         // We also pin a server-generated messageId so the row we persist
         // matches the id the client renders.
         writer.write({ type: "start", messageId: generateId() });
+
+        // Source links — kept for backward compat with the existing UI.
         for (const id of orderedItemIds) {
           const item = itemById.get(id);
           if (!item) continue;
@@ -478,7 +482,101 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
             title: item.title ?? undefined,
           });
         }
+
+        // Passages — one part with the full ordered list. Each entry has a
+        // chunkId the model cites as [c:<chunkId>], plus a quote the UI
+        // renders inline so the user sees the actual evidence.
+        const passagesData = ranked
+          .filter((r): r is typeof r & { chunkId: string } => r.chunkId !== null)
+          .map((r) => {
+            const item = itemById.get(r.itemId);
+            return {
+              chunkId: r.chunkId,
+              itemId: r.itemId,
+              url: item?.url ?? "",
+              title: item?.title ?? "",
+              quote: r.text.length > 240 ? `${r.text.slice(0, 240).trimEnd()}…` : r.text,
+              rerankScore: r.rerankScore,
+            };
+          });
+        if (passagesData.length > 0) {
+          writer.write({ type: "data-passages", data: { passages: passagesData } });
+        }
+
+        // "What I considered" stats — pure presentational, click-to-expand
+        // affordance under each assistant bubble in the UI.
+        writer.write({
+          type: "data-retrieval",
+          data: {
+            denseCandidates: denseMatches.length,
+            ftsCandidates: ftsMatches.length,
+            rerankCandidates: rerankInputs.length,
+            rerankKept: ranked.length,
+            finalItemCount: groupedByItem.size,
+            condensed: retrievalQuery !== question ? retrievalQuery : null,
+          },
+        });
+
         await writer.merge(result.toUIMessageStream({ sendStart: false }));
+
+        // ── Post-stream: follow-ups and (first-turn) thread title.
+        // These need the LLM's final text, which `result.text` resolves
+        // after the stream completes. Errors are swallowed — UI degrades
+        // gracefully without these.
+        try {
+          const finalText = await result.text;
+
+          const followupSources = orderedItemIds
+            .map((id) => itemById.get(id))
+            .filter((x): x is RawItem => !!x)
+            .map((it) => ({ title: it.title, url: it.url }));
+
+          const followups = await generateFollowups(
+            c.env.AI,
+            question,
+            finalText,
+            followupSources,
+            models.auxiliary
+          );
+
+          if (followups.length > 0) {
+            writer.write({ type: "data-followups", data: { questions: followups } });
+            recordUsageEvent(c.env, {
+              userId,
+              eventType: "followups",
+              source: "web",
+              model: models.auxiliary,
+              metadata: { count: followups.length },
+            }).catch(() => {});
+          }
+
+          // First-turn title: replace the prefix-truncated `deriveTitle`
+          // with an LLM-generated 4-6 word title.
+          if (priorTurns.length === 0) {
+            const title = await generateThreadTitle(
+              c.env.AI,
+              question,
+              finalText,
+              models.auxiliary
+            );
+            if (title) {
+              await db
+                .update(schema.chatThreads)
+                .set({ title, updatedAt: sql`now()` })
+                .where(eq(schema.chatThreads.id, threadId));
+              writer.write({ type: "data-title", data: { title } });
+              recordUsageEvent(c.env, {
+                userId,
+                eventType: "title",
+                source: "web",
+                model: models.auxiliary,
+                metadata: { threadId },
+              }).catch(() => {});
+            }
+          }
+        } catch (err) {
+          console.error("[chat post-stream]", err);
+        }
       },
     }),
     headers: {

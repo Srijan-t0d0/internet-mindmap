@@ -4,6 +4,9 @@ import { useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import SourcesList from "./SourcesList";
+import PassageStrip from "./PassageStrip";
+import ConsideredDrawer from "./ConsideredDrawer";
+import FollowupChips from "./FollowupChips";
 import { useChatSession } from "../hooks/use-chat-session";
 
 const SUGGESTIONS = [
@@ -29,6 +32,9 @@ export default function ChatView() {
     sendMessage,
     getMessageText,
     getMessageSources,
+    getMessagePassages,
+    getMessageRetrieval,
+    getMessageFollowups,
   } = useChatSession();
 
   // Avoid flashing the empty-state suggestions while we hydrate prior
@@ -164,6 +170,9 @@ export default function ChatView() {
                 const text = getMessageText(msg);
                 const isUser = msg.role === "user";
                 const sources = isUser ? [] : getMessageSources(msg);
+                const passages = isUser ? [] : getMessagePassages(msg);
+                const retrieval = isUser ? null : getMessageRetrieval(msg);
+                const followups = isUser ? [] : getMessageFollowups(msg);
                 const isLastStreaming =
                   isStreaming &&
                   msg === messages[messages.length - 1] &&
@@ -225,7 +234,24 @@ export default function ChatView() {
                           </div>
                         )}
                       </div>
-                      {sources.length > 0 && <SourcesList sources={sources} />}
+                      {!isUser && passages.length > 0 && (
+                        <PassageStrip passages={passages} />
+                      )}
+                      {!isUser && passages.length === 0 && sources.length > 0 && (
+                        <SourcesList sources={sources} />
+                      )}
+                      {!isUser && retrieval && !isLastStreaming && (
+                        <ConsideredDrawer summary={retrieval} />
+                      )}
+                      {!isUser && followups.length > 0 && (
+                        <FollowupChips
+                          questions={followups}
+                          onPick={(text) => {
+                            setInput("");
+                            sendMessage({ text });
+                          }}
+                        />
+                      )}
                     </div>
                   </div>
                 );
