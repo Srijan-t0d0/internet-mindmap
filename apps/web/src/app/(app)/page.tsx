@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { getItems, searchItemsServer } from "../../lib/data";
+import { getSession, getItems, searchItemsServer } from "../../lib/data";
 import ItemsShell from "../../components/ItemsShell";
 import ItemsShellSkeleton from "../../components/ItemsShellSkeleton";
 
@@ -40,6 +40,12 @@ async function ExploreLoader({
   selectedSource: string | null;
   selectedTag: string | null;
 }) {
+  // Layout short-circuits to LoginPage when unauthenticated, but Next renders
+  // the page in parallel with the layout — guard here so the fetch doesn't
+  // throw 401 and cascade into a server-render error.
+  const session = await getSession();
+  if (!session) return null;
+
   const itemsData = searchQuery
     ? await searchItemsServer({
         q: searchQuery,
