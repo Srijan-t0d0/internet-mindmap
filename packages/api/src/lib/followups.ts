@@ -33,7 +33,10 @@ export async function generateFollowups(
     .map((s, i) => `[${i + 1}] ${s.title}`)
     .join("\n");
 
+  // `/no_think` disables Qwen3's reasoning mode so the output budget is
+  // spent on the JSON array, not <think>…</think> tokens.
   const prompt =
+    `/no_think\n` +
     `Question: ${question}\n\n` +
     `Answer (just delivered):\n${answer.slice(0, 2000)}\n\n` +
     `Sources cited:\n${sourceList || "(none)"}\n\n` +
@@ -45,7 +48,7 @@ export async function generateFollowups(
       model: workersai(model),
       system: SYSTEM,
       prompt,
-      maxOutputTokens: 200,
+      maxOutputTokens: 512,
     });
 
     const cleaned = text

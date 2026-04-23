@@ -28,8 +28,8 @@ export async function generateThreadTitle(
     const { text } = await generateText({
       model: workersai(model),
       system: SYSTEM,
-      prompt: `Question: ${question}\n\nAnswer:\n${answer.slice(0, 800)}\n\nTitle:`,
-      maxOutputTokens: 24,
+      prompt: `/no_think\nQuestion: ${question}\n\nAnswer:\n${answer.slice(0, 800)}\n\nTitle:`,
+      maxOutputTokens: 64,
     });
     const cleaned = text
       .trim()

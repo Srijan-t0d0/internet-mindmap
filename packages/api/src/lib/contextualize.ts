@@ -64,7 +64,10 @@ export async function contextualizeChunks({
       })
       .join("\n\n---\n\n");
 
+    // `/no_think` disables Qwen3's reasoning mode — otherwise it emits
+    // <think>…</think> tokens that exhaust maxOutputTokens before the JSON.
     const prompt =
+      `/no_think\n` +
       `Document title: ${title}\n` +
       `Document summary: ${summary || "(no summary)"}\n\n` +
       `Chunks (${batch.length}):\n\n${numbered}\n\n` +
@@ -75,17 +78,28 @@ export async function contextualizeChunks({
         model: workersai(model),
         system: SYSTEM,
         prompt,
-        maxOutputTokens: 80 * batch.length + 64,
+        // Generous buffer: if reasoning mode kicks in despite /no_think,
+        // we still have headroom for the actual JSON payload.
+        maxOutputTokens: 200 * batch.length + 256,
       });
 
       const parsed = parsePrefixArray(text, batch.length);
+      const matched = parsed.filter((p) => p && p.length > 0).length;
+      if (matched === 0) {
+        console.warn(
+          `[contextualize] parse yielded 0 prefixes for batch of ${batch.length}. raw_output=${JSON.stringify(text).slice(0, 400)}`
+        );
+      }
       for (let i = 0; i < batch.length; i++) {
         prefixes[start + i] = parsed[i] ?? "";
       }
-    } catch {
+    } catch (err) {
       // Non-fatal — leave the prefixes empty for this batch and move on.
       // Embedding still works on the raw chunk; retrieval just won't get
       // the context lift for these chunks.
+      console.warn(
+        `[contextualize] batch ${start}/${chunks.length} failed: ${err instanceof Error ? err.message : String(err)}`
+      );
     }
   }
 

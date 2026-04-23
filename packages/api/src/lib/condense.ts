@@ -54,7 +54,7 @@ export async function condenseQuery(
     })
     .join("\n");
 
-  const prompt = `${transcript}\nUser: ${latestUserMessage}\n\nRewritten standalone query:`;
+  const prompt = `/no_think\n${transcript}\nUser: ${latestUserMessage}\n\nRewritten standalone query:`;
 
   try {
     const workersai = createWorkersAI({ binding: ai });
@@ -62,7 +62,7 @@ export async function condenseQuery(
       model: workersai(model),
       system: SYSTEM,
       prompt,
-      maxOutputTokens: 96,
+      maxOutputTokens: 256,
     });
     const cleaned = text
       .trim()
