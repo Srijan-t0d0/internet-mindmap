@@ -232,9 +232,15 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
   //   item with `?force=1` (used by the contextual-retrieval backfill).
   .post("/:id", async (c) => {
     const id = c.req.param("id")!;
-    const userId = c.get("userId");
+    const authUserId = c.get("userId");
     const db = getDb(c.env);
     const force = c.req.query("force") === "1";
+
+    // Agent token (userId === "agent") may impersonate a real owner for admin
+    // ops like the contextual-retrieval backfill by passing X-Admin-User-Id.
+    const impersonate = c.req.header("x-admin-user-id");
+    const userId =
+      authUserId === "agent" && impersonate ? impersonate : authUserId;
 
     const item = await db
       .select()

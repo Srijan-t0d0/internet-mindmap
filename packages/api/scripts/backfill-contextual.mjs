@@ -64,7 +64,7 @@ async function listPending() {
   // Items that are ready, multi-chunk, and have NO chunk with a populated
   // context_prefix. Skip items already partially backfilled.
   return await sql`
-    SELECT i.id, i.title, i.url, i.chunk_count
+    SELECT i.id, i.user_id, i.title, i.url, i.chunk_count
     FROM items i
     WHERE i.status = 'ready'
       AND i.chunk_count >= 3
@@ -78,13 +78,14 @@ async function listPending() {
   `;
 }
 
-async function reprocess(itemId) {
+async function reprocess(itemId, userId) {
   const url = `${apiBase.replace(/\/$/, "")}/api/items/${encodeURIComponent(itemId)}?force=1`;
   const res = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiToken}`,
       "Content-Type": "application/json",
+      "X-Admin-User-Id": userId,
     },
   });
   if (!res.ok) {
@@ -114,7 +115,7 @@ async function main() {
       continue;
     }
     try {
-      await reprocess(item.id);
+      await reprocess(item.id, item.user_id);
       console.log(`  ✓ ${head}`);
     } catch (err) {
       console.log(`  ✗ ${head}  →  ${err instanceof Error ? err.message : err}`);
