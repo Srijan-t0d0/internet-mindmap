@@ -228,20 +228,27 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
 
     return c.json({ deleted: true, id }, 200);
   })
-  // POST /api/items/:id — retry failed item
+  // POST /api/items/:id — retry failed item, or force-reprocess a ready
+  //   item with `?force=1` (used by the contextual-retrieval backfill).
   .post("/:id", async (c) => {
     const id = c.req.param("id")!;
     const userId = c.get("userId");
     const db = getDb(c.env);
+    const force = c.req.query("force") === "1";
 
     const item = await db
       .select()
       .from(schema.items)
-      .where(and(eq(schema.items.id, id), eq(schema.items.status, "error"), eq(schema.items.userId, userId)))
+      .where(and(eq(schema.items.id, id), eq(schema.items.userId, userId)))
       .then((rows) => rows[0] ?? null);
 
-    if (!item) {
-      return c.json({ error: "Item not found or not in error state" }, 404);
+    if (!item) return c.json({ error: "Item not found" }, 404);
+
+    if (!force && item.status !== "error") {
+      return c.json(
+        { error: "Item is not in error state. Pass ?force=1 to re-process a ready item." },
+        409
+      );
     }
 
     await db
@@ -253,12 +260,15 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
       })
       .where(eq(schema.items.id, id));
 
-    const workflowId = `${id}-retry-${Date.now()}`;
+    const workflowId = `${id}-${force ? "reprocess" : "retry"}-${Date.now()}`;
     await c.env.PROCESS_ITEM.create({
       id: workflowId,
       params: { itemId: id, url: item.url, source_type: item.sourceType, userId },
     });
-    return c.json({ id, status: "pending", message: "Retry enqueued" }, 200);
+    return c.json(
+      { id, status: "pending", message: force ? "Reprocess enqueued" : "Retry enqueued" },
+      200
+    );
   });
 
 export default app;

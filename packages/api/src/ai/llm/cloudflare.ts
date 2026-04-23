@@ -3,8 +3,7 @@ import { createWorkersAI } from "workers-ai-provider";
 import { z } from "zod";
 import type { LLMProvider, TagsAndSummary } from "@internet-mindmap/shared";
 import { buildTaggingPrompt } from "./prompts";
-
-const LLM_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8";
+import { DEFAULT_MODELS } from "./models";
 
 const tagsAndSummarySchema = z.object({
   betterTitle: z.string(),
@@ -14,11 +13,14 @@ const tagsAndSummarySchema = z.object({
 });
 
 export class CloudflareLLMProvider implements LLMProvider {
-  readonly name = "cloudflare-qwen3-30b-a3b";
+  readonly name: string;
   private ai: Ai;
+  private model: string;
 
-  constructor(ai: Ai) {
+  constructor(ai: Ai, model: string = DEFAULT_MODELS.tagging) {
     this.ai = ai;
+    this.model = model;
+    this.name = `cloudflare:${model}`;
   }
 
   async generateTagsAndSummary(
@@ -32,7 +34,7 @@ export class CloudflareLLMProvider implements LLMProvider {
     const workersai = createWorkersAI({ binding: this.ai });
 
     const { object, usage } = await generateObject({
-      model: workersai(LLM_MODEL),
+      model: workersai(this.model),
       schema: tagsAndSummarySchema,
       prompt,
     });

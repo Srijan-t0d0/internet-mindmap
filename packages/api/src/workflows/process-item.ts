@@ -15,6 +15,8 @@ import {
   type LegacyDestination,
 } from "../ai/embeddings/pipeline";
 import { CloudflareLLMProvider } from "../ai/llm/cloudflare";
+import { getModels } from "../ai/llm/models";
+import { contextualizeChunks } from "../lib/contextualize";
 import { fetchYouTubeTranscript } from "../lib/youtube";
 import { recordUsageEvent, estimateEmbeddingTokens } from "../lib/usage";
 import type { Env } from "../bindings";
@@ -118,7 +120,8 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
           existingTags = topTagRows.map((r) => r.name);
         }
 
-        const llm = new CloudflareLLMProvider(env.AI);
+        const taggingModel = getModels(env).tagging;
+        const llm = new CloudflareLLMProvider(env.AI, taggingModel);
         const result = await llm.generateTagsAndSummary(
           content.title,
           content.content,
@@ -132,7 +135,7 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
             userId: event.payload.userId,
             eventType: "tagging",
             source: "workflow",
-            model: "@cf/qwen/qwen3-30b-a3b-fp8",
+            model: taggingModel,
             inputTokens: result.usage?.inputTokens ?? 0,
             outputTokens: result.usage?.outputTokens ?? 0,
             metadata: { itemId },
@@ -164,6 +167,29 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
         // rawContent from items and chunk themselves during backfill.
         const chunks = activeProvider.chunkText(content.content ?? "");
 
+        // ── Contextual retrieval (Anthropic-style) ────────────────────────
+        // For long, multi-chunk documents, ask the auxiliary LLM to write a
+        // 1-sentence prefix per chunk that situates it inside the parent
+        // doc. Prefix gets prepended to the chunk before embedding AND
+        // stored in item_chunks.context_prefix so the FTS index covers it.
+        // Skip short docs — they have implicit context already.
+        const contextualEligible =
+          chunks.length >= 3 && (content.content?.length ?? 0) >= 4000;
+        const prefixes: string[] = contextualEligible
+          ? await contextualizeChunks({
+              ai: env.AI,
+              model: getModels(env).auxiliary,
+              title: content.title,
+              summary: llmResult.summary,
+              chunks,
+            })
+          : new Array(chunks.length).fill("");
+
+        const isContextualised = prefixes.some((p) => p && p.length > 0);
+        const chunkerId = isContextualised
+          ? `${activeProvider.chunkerId}-contextual-v1`
+          : activeProvider.chunkerId;
+
         const pending: PendingEmbeddingInput[] = [
           {
             modality: "text",
@@ -173,11 +199,27 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
           },
           ...chunks.map((chunk, i) => ({
             modality: "text" as const,
-            content: chunk,
+            // Prepend the contextual prefix so the embedding sees the
+            // chunk-in-context. Falls back to plain chunk when no prefix.
+            content: prefixes[i] ? `${prefixes[i]}\n\n${chunk}` : chunk,
             chunkIndex: i + 1, // +1 because chunkIndex=0 is the enriched doc
-            chunkerId: activeProvider.chunkerId,
+            chunkerId,
           })),
         ];
+
+        if (event.payload.userId && isContextualised) {
+          recordUsageEvent(env, {
+            userId: event.payload.userId,
+            eventType: "contextualize",
+            source: "workflow",
+            model: getModels(env).auxiliary,
+            metadata: {
+              itemId,
+              chunkCount: chunks.length,
+              prefixedCount: prefixes.filter(Boolean).length,
+            },
+          }).catch(() => {});
+        }
 
         const inputs = await upsertEmbeddingInputs(db, itemId, pending);
 
@@ -220,13 +262,20 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
                   .where(eq(schema.items.id, itemId));
                 return { table: "items", id: itemId };
               }
-              // Per-chunk vector → item_chunks
+              // Per-chunk vector → item_chunks. We also persist the raw
+              // chunk text and (when contextualised) the prefix, so the
+              // chat route can pass the matched passage to the LLM and
+              // the FTS index can cover both.
               const chunkId = chunkRowIds.get(chunkIndex)!;
+              const chunkText = chunks[chunkIndex - 1] ?? null;
+              const prefix = prefixes[chunkIndex - 1] || null;
               await db.insert(schema.itemChunks).values({
                 id: chunkId,
                 itemId,
                 chunkIndex: chunkIndex - 1, // back to 0-indexed on disk
                 embedding: vector,
+                text: chunkText,
+                contextPrefix: prefix,
               });
               return { table: "item_chunks", id: chunkId };
             }

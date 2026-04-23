@@ -19,6 +19,11 @@ export interface Env {
   // Default: "gemma-768-v1" active, no shadow.
   EMBEDDING_ACTIVE?: string;
   EMBEDDING_SHADOW?: string;
+  // LLM model overrides (see ai/llm/models.ts).
+  // Defaults are kept in code; set these only to flip without redeploying.
+  LLM_SYNTHESIS?: string;
+  LLM_AUXILIARY?: string;
+  LLM_TAGGING?: string;
 }
 
 export interface Variables {

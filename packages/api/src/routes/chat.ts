@@ -11,54 +11,26 @@ import { createWorkersAI } from "workers-ai-provider";
 import type { Env, Variables } from "../bindings";
 import { getDb } from "../db/client";
 import { buildEmbeddingRegistry } from "../ai/embeddings/registry";
-import { vectorSearch, toVectorLiteral } from "../lib/vector-search";
-import { generateHypotheticalAnswer, HYDE_MODEL } from "../lib/hyde";
+import {
+  vectorSearchPassages,
+  ftsSearchPassages,
+  rrfFuse,
+  toVectorLiteral,
+} from "../lib/vector-search";
+import { rerank } from "../lib/rerank";
+import { condenseQuery, type CondenseTurn } from "../lib/condense";
 import { buildChatMessages } from "../ai/llm/prompts";
+import { getModels, DEFAULT_MODELS } from "../ai/llm/models";
 import { recordUsageEvent, estimateEmbeddingTokens } from "../lib/usage";
 import * as schema from "../db/schema";
 
-const LLM_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8";
-
-// ── Self-RAG: detect purely conversational messages that don't need retrieval ──
+// ── Pre-classifier: detect purely conversational messages that don't need
+//    retrieval. Cheap latency win — saves an embed + a vector query per "hi". ─
 const CONVERSATIONAL_RE =
   /^(hi|hello|hey|thanks|thank you|ok|okay|got it|cool|great|sure|yes|no|bye|goodbye|sounds good|makes sense|awesome|perfect|nice|lol|😊|👋)\W*$/i;
 
 function isConversational(text: string): boolean {
   return text.length < 40 && CONVERSATIONAL_RE.test(text.trim());
-}
-
-// ── CRAG: stop-word list for query term extraction ────────────────────────────
-const STOP_WORDS = new Set([
-  "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
-  "have", "has", "had", "do", "does", "did", "will", "would", "could",
-  "should", "may", "might", "must", "can", "to", "of", "in", "on", "at",
-  "by", "for", "with", "from", "this", "that", "it", "its", "what", "how",
-  "why", "when", "where", "who", "me", "my", "about", "tell", "show",
-  "find", "get", "all", "any", "some", "more", "also", "just", "not",
-  "and", "or", "but", "if", "so", "then", "than", "like", "did", "know",
-]);
-
-function extractQueryTerms(query: string): string[] {
-  return query
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter((t) => t.length > 2 && !STOP_WORDS.has(t));
-}
-
-function scoreRelevance(
-  queryTerms: string[],
-  item: { title: string; summary: string | null }
-): number {
-  if (queryTerms.length === 0) return 1;
-  const haystack = `${item.title} ${item.summary ?? ""}`.toLowerCase();
-  const hits = queryTerms.filter((t) => haystack.includes(t));
-  return hits.length / queryTerms.length;
-}
-
-function rewriteQuery(query: string): string {
-  const terms = extractQueryTerms(query);
-  return terms.length > 0 ? terms.join(" ") : query;
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -69,10 +41,17 @@ type RawItem = {
   summary: string | null;
 };
 
-type ScoredItem = RawItem & {
-  tags: string[];
+/**
+ * One unit of evidence handed to the cross-encoder. `text` is what the
+ * reranker scores against the query. `chunkId` is null for whole-doc
+ * candidates (matched on items.embedding) and tag-graph candidates
+ * (matched on shared tags, no vector match at all).
+ */
+type RerankUnit = {
+  text: string;
+  itemId: string;
+  chunkId: string | null;
   fromGraph: boolean;
-  relevance: number;
 };
 
 // ── Hono route ────────────────────────────────────────────────────────────────
@@ -109,6 +88,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
   if (question.length > 1000) return c.json({ error: "Question too long (max 1000 characters)" }, 400);
 
   const userId = c.get("userId");
+  const models = getModels(c.env);
   const workersai = createWorkersAI({ binding: c.env.AI });
 
   // ── Thread id: client-supplied or server-generated ──────────────────────
@@ -136,7 +116,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
   // ── Self-RAG: skip retrieval for purely conversational messages ─────────────
   if (isConversational(question)) {
     const result = streamText({
-      model: workersai(LLM_MODEL),
+      model: workersai(models.synthesis),
       system: "You are a friendly assistant for a personal knowledge base app. Respond naturally to short conversational messages.",
       messages: [{ role: "user", content: question }],
       maxOutputTokens: 256,
@@ -151,46 +131,90 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
     });
   }
 
-  // ── HyDE: embed a hypothetical answer instead of the raw question ───────────
-  const embedder = buildEmbeddingRegistry(c.env).active();
-
-  let textToEmbed = question;
-  try {
-    textToEmbed = (await generateHypotheticalAnswer(c.env.AI, question)) || question;
-    recordUsageEvent(c.env, {
-      userId,
-      eventType: "hyde",
-      source: "web",
-      model: HYDE_MODEL,
-      metadata: { question: question.slice(0, 200) },
-    }).catch(() => {});
-  } catch {
-    // Non-fatal — fall back to embedding the raw question
+  // ── Multi-turn condense: rewrite the latest message into a standalone
+  //    search query using prior turns. Skipped on first turn. The rewrite
+  //    is used ONLY for retrieval — the synthesis prompt still gets the
+  //    user's original phrasing. ────────────────────────────────────────────
+  const priorTurns: CondenseTurn[] = [];
+  for (const m of incomingMessages) {
+    if (m === lastUserMsg) continue;
+    if (m.role !== "user" && m.role !== "assistant") continue;
+    const text = (
+      m.parts?.filter((p) => p.type === "text").map((p) => p.text).join("") ||
+      m.content ||
+      ""
+    ).trim();
+    if (text.length === 0) continue;
+    priorTurns.push({ role: m.role as "user" | "assistant", text });
   }
 
+  const retrievalQuery = await condenseQuery(
+    c.env.AI,
+    priorTurns,
+    question,
+    models.auxiliary
+  );
+
+  if (retrievalQuery !== question) {
+    recordUsageEvent(c.env, {
+      userId,
+      eventType: "condense",
+      source: "web",
+      model: models.auxiliary,
+      metadata: {
+        question: question.slice(0, 200),
+        rewritten: retrievalQuery.slice(0, 200),
+        priorTurns: priorTurns.length,
+      },
+    }).catch(() => {});
+  }
+
+  // ── Embed the (condensed) query. HyDE was deleted — Anthropic's contextual
+  //    retrieval (Step 5) plus the cross-encoder rerank (Step 3) cover the
+  //    same recall lift HyDE used to provide on personal-KB domains, without
+  //    HyDE's hallucination risk. ────────────────────────────────────────────
+  const embedder = buildEmbeddingRegistry(c.env).active();
+
   const [queryEmbedding] = await embedder.embed([
-    { modality: "text", content: textToEmbed },
+    { modality: "text", content: retrievalQuery },
   ]);
 
   recordUsageEvent(c.env, {
     userId,
     eventType: "embedding",
     source: "web",
-    model: "@cf/google/embeddinggemma-300m",
-    inputTokens: estimateEmbeddingTokens(textToEmbed),
+    model: embedder.id,
+    inputTokens: estimateEmbeddingTokens(retrievalQuery),
     metadata: { source: "chat-query" },
   }).catch(() => {});
 
   const embeddingLiteral = toVectorLiteral(queryEmbedding);
 
-  // ── pgvector UNION search — topK=8 to give CRAG more candidates ─────────────
-  const matches = await vectorSearch(db, embeddingLiteral, 8, userId);
+  // ── Hybrid retrieval: dense pgvector + sparse Postgres FTS, fused by RRF.
+  //    Each branch returns up to K=20 raw passages; RRF picks the top 20
+  //    fused passages for the cross-encoder to rerank. Dense covers
+  //    semantic similarity; FTS covers exact-token matches (proper nouns,
+  //    code identifiers, error codes) where dense embeddings smear. ─────────
+  const [denseMatches, ftsMatches] = await Promise.all([
+    vectorSearchPassages(db, embeddingLiteral, 20, userId),
+    ftsSearchPassages(db, retrievalQuery, 20, userId),
+  ]);
 
-  if (matches.length === 0) {
+  const passageMatches = rrfFuse([denseMatches, ftsMatches], 20);
+
+  if (passageMatches.length === 0) {
     return c.json({ error: "No saved items found. Save some content first!" }, 404);
   }
 
-  const seedIds = matches.map((m) => m.item_id);
+  // Order-preserving unique item ids (best score first).
+  const seedIdSet = new Set<string>();
+  const seedIds: string[] = [];
+  for (const m of passageMatches) {
+    if (!seedIdSet.has(m.item_id)) {
+      seedIdSet.add(m.item_id);
+      seedIds.push(m.item_id);
+    }
+  }
 
   // ── Round-trip 1: fetch seed items + their tags in parallel ─────────────────
   const [seedItems, seedTagRows] = await Promise.all([
@@ -248,89 +272,120 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
           .limit(8)
       : [];
 
-  // ── CRAG: score and filter retrieved items ──────────────────────────────────
-  const queryTerms = extractQueryTerms(question);
-  const RELEVANCE_THRESHOLD = 0.15;
+  // ── Build the rerank candidate pool ──────────────────────────────────────
+  // One unit per piece of evidence: matched chunks (with their text), doc-level
+  // dense matches (text = title + summary from seedItems), and tag-graph items
+  // (also title + summary). The cross-encoder will score them all jointly
+  // against the query and rank by genuine relevance.
+  const itemById = new Map<string, RawItem>();
+  for (const it of seedItems) itemById.set(it.id, it);
+  for (const it of graphItems) itemById.set(it.id, it);
 
-  const seen = new Set<string>();
+  const rerankInputs: RerankUnit[] = [];
+  const seenChunkIds = new Set<string>();
 
-  function scoreAndTag(item: RawItem, fromGraph: boolean): ScoredItem {
-    return {
-      ...item,
-      tags: tagsByItem.get(item.id) ?? [],
-      fromGraph,
-      relevance: scoreRelevance(queryTerms, item),
-    };
-  }
-
-  const allItems: ScoredItem[] = [];
-  for (const item of [...seedItems.map((i) => scoreAndTag(i, false)), ...graphItems.map((i) => scoreAndTag(i, true))]) {
-    if (!seen.has(item.id)) {
-      seen.add(item.id);
-      allItems.push(item);
+  for (const m of passageMatches) {
+    if (m.chunk_id && m.text) {
+      // Skip duplicate chunks if the UNION ever produces them.
+      if (seenChunkIds.has(m.chunk_id)) continue;
+      seenChunkIds.add(m.chunk_id);
+      rerankInputs.push({
+        text: m.text,
+        itemId: m.item_id,
+        chunkId: m.chunk_id,
+        fromGraph: false,
+      });
+    } else {
+      // Doc-level match (matched on items.embedding). Use title + summary
+      // as the rerank text so the cross-encoder has something to score.
+      const item = itemById.get(m.item_id);
+      if (!item) continue;
+      rerankInputs.push({
+        text: `${item.title}\n\n${item.summary ?? ""}`.trim(),
+        itemId: m.item_id,
+        chunkId: null,
+        fromGraph: false,
+      });
     }
   }
 
-  let relevantItems = allItems.filter((i) => i.relevance >= RELEVANCE_THRESHOLD);
+  for (const item of graphItems) {
+    rerankInputs.push({
+      text: `${item.title}\n\n${item.summary ?? ""}`.trim(),
+      itemId: item.id,
+      chunkId: null,
+      fromGraph: true,
+    });
+  }
 
-  // ── CRAG retry: if fewer than 2 items are relevant, rewrite and re-search once
-  let cragRetried = false;
-  if (relevantItems.length < 2) {
-    const rewritten = rewriteQuery(question);
-    if (rewritten !== question && rewritten.length > 0) {
-      cragRetried = true;
-      const [retryEmbedding] = await embedder.embed([
-        { modality: "text", content: rewritten },
-      ]);
-      const retryLiteral = toVectorLiteral(retryEmbedding);
-      const retryMatches = await vectorSearch(db, retryLiteral, 5, userId);
+  // ── Cross-encoder rerank: precision pass over the candidate pool. We
+  //    score against the condensed query so follow-ups like "and the React
+  //    one?" rank against the resolved noun, not the bare pronoun. ────────
+  const KEEP_TOP = 6;
+  const ranked = await rerank(c.env.AI, retrievalQuery, rerankInputs, KEEP_TOP);
 
-      const retryIds = retryMatches.map((m) => m.item_id).filter((id) => !seen.has(id));
-      if (retryIds.length > 0) {
-        const retryItems = await db
-          .select({
-            id: schema.items.id,
-            url: schema.items.url,
-            title: schema.items.title,
-            summary: schema.items.summary,
-          })
-          .from(schema.items)
-          .where(and(inArray(schema.items.id, retryIds), eq(schema.items.userId, userId)));
+  recordUsageEvent(c.env, {
+    userId,
+    eventType: "rerank",
+    source: "web",
+    model: DEFAULT_MODELS.reranker,
+    metadata: {
+      candidates: rerankInputs.length,
+      kept: ranked.length,
+    },
+  }).catch(() => {});
 
-        for (const item of retryItems) {
-          if (!seen.has(item.id)) {
-            seen.add(item.id);
-            allItems.push(scoreAndTag(item, false));
-          }
-        }
-        relevantItems = allItems.filter((i) => i.relevance >= RELEVANCE_THRESHOLD);
-      }
+  // ── Group ranked results by item, preserving rerank order ────────────────
+  type GroupedItem = {
+    itemId: string;
+    fromGraph: boolean;
+    passages: { chunkId: string; text: string }[];
+    bestRerankScore: number;
+  };
+  const groupedByItem = new Map<string, GroupedItem>();
+  for (const r of ranked) {
+    let g = groupedByItem.get(r.itemId);
+    if (!g) {
+      g = {
+        itemId: r.itemId,
+        fromGraph: r.fromGraph,
+        passages: [],
+        bestRerankScore: r.rerankScore,
+      };
+      groupedByItem.set(r.itemId, g);
+    }
+    if (r.chunkId) {
+      g.passages.push({ chunkId: r.chunkId, text: r.text });
     }
   }
 
-  const finalItems = relevantItems.length > 0 ? relevantItems : allItems;
-
-  finalItems.sort((a, b) => {
-    if (a.fromGraph !== b.fromGraph) return a.fromGraph ? 1 : -1;
-    return b.relevance - a.relevance;
-  });
-
-  const contextItems = finalItems.slice(0, 10);
+  const orderedItemIds = [...groupedByItem.values()]
+    .sort((a, b) => b.bestRerankScore - a.bestRerankScore)
+    .map((g) => g.itemId);
 
   // ── Build prompt and stream response ─────────────────────────────────────────
   const { system, userMessage } = buildChatMessages(
     question,
-    contextItems.map((i) => ({
-      title: i.title,
-      url: i.url,
-      summary: i.summary ?? "",
-      tags: i.tags,
-      fromGraph: i.fromGraph,
-    }))
+    orderedItemIds
+      .map((id) => {
+        const item = itemById.get(id);
+        const group = groupedByItem.get(id)!;
+        if (!item) return null;
+        return {
+          itemId: item.id,
+          title: item.title,
+          url: item.url,
+          summary: item.summary ?? "",
+          tags: tagsByItem.get(item.id) ?? [],
+          fromGraph: group.fromGraph,
+          passages: group.passages,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => x !== null)
   );
 
   const result = streamText({
-    model: workersai(LLM_MODEL),
+    model: workersai(models.synthesis),
     system,
     messages: [{ role: "user", content: userMessage }],
     maxOutputTokens: 2048,
@@ -339,15 +394,16 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
         userId,
         eventType: "chat",
         source: "web",
-        model: LLM_MODEL,
+        model: models.synthesis,
         inputTokens: usage?.inputTokens ?? 0,
         outputTokens: usage?.outputTokens ?? 0,
         metadata: {
           question: question.slice(0, 200),
           seedCount: seedItems.length,
           graphCount: graphItems.length,
-          finalCount: contextItems.length,
-          cragRetried,
+          rerankCandidates: rerankInputs.length,
+          rerankKept: ranked.length,
+          finalItemCount: groupedByItem.size,
         },
       }).catch(() => {});
     },
@@ -412,7 +468,9 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
         // We also pin a server-generated messageId so the row we persist
         // matches the id the client renders.
         writer.write({ type: "start", messageId: generateId() });
-        for (const item of contextItems) {
+        for (const id of orderedItemIds) {
+          const item = itemById.get(id);
+          if (!item) continue;
           writer.write({
             type: "source-url",
             sourceId: item.id,

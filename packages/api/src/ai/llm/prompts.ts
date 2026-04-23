@@ -33,28 +33,69 @@ ${truncated}
 Return ONLY valid JSON, no markdown fences.`;
 }
 
+export type ChatContextItem = {
+  itemId: string;
+  title: string;
+  url: string;
+  summary: string;
+  tags?: string[];
+  fromGraph?: boolean;
+  /** Matched passages from this item, in score-descending order. May be empty
+   *  when the item was added via the tag-graph hop (no chunk matched). */
+  passages?: { chunkId: string; text: string }[];
+};
+
+/** Soft cap on total context characters fed to the synthesis LLM. Kimi K2.6
+ *  has 256k tokens of headroom, but we still want a tight prompt to keep
+ *  latency and noise down. */
+const CONTEXT_CHAR_BUDGET = 28000;
+
 export function buildChatMessages(
   question: string,
-  items: { title: string; url: string; summary: string; tags?: string[]; fromGraph?: boolean }[]
+  items: ChatContextItem[]
 ): { system: string; userMessage: string } {
-  const context = items
-    .map((item, i) => {
-      const lines: string[] = [`[${i + 1}] "${item.title}" (${item.url})`];
-      if (item.fromGraph) lines[0] += " · related via shared topics";
-      if (item.tags?.length) lines.push(`Topics: ${item.tags.join(", ")}`);
-      lines.push(`Summary: ${item.summary}`);
-      return lines.join("\n");
-    })
-    .join("\n\n");
+  let used = 0;
+  const blocks: string[] = [];
+
+  for (const item of items) {
+    const header = item.fromGraph
+      ? `## "${item.title}" · related via shared topics\nURL: ${item.url}`
+      : `## "${item.title}"\nURL: ${item.url}`;
+    const tagsLine = item.tags?.length ? `Tags: ${item.tags.join(", ")}` : "";
+    const summaryLine = item.summary ? `Summary: ${item.summary}` : "";
+    const passageLines = (item.passages ?? []).map(
+      (p) => `Passage [c:${p.chunkId}]:\n${p.text}`
+    );
+    const itemRefHint = item.passages?.length
+      ? ""
+      : `(No passages matched directly — cite as [i:${item.itemId}] when using this source.)`;
+
+    const block = [header, tagsLine, summaryLine, ...passageLines, itemRefHint]
+      .filter(Boolean)
+      .join("\n");
+
+    if (used + block.length > CONTEXT_CHAR_BUDGET && blocks.length > 0) break;
+    blocks.push(block);
+    used += block.length + 2;
+  }
+
+  const context = blocks.join("\n\n");
 
   return {
-    system: `You are a helpful assistant that answers questions based on the user's personal knowledge base — a curated collection of articles, pages, and notes they have saved.
+    system: `You answer from the user's personal knowledge base — articles, pages, and notes they have saved.
 
-Only use the provided context to answer. If the context doesn't contain enough information, say so clearly rather than guessing.
-When citing a source, use bracket references like [1], [2], etc. matching the numbered items.
-Items marked "related via shared topics" were retrieved because they share topic tags with the most relevant results — treat them as supporting context.
-Use markdown formatting: **bold** for key points, bullet lists for multiple items, code blocks for code.
-Synthesise across multiple sources when the answer spans them. Be concise and well-structured.`,
+Citation rules:
+- After every factual claim, cite the most specific source.
+- Use [c:<chunk_id>] when the claim is supported by a quoted Passage.
+- Use [i:<item_id>] only when the claim is supported by an item's Summary and no Passage covers it.
+- Multiple citations are fine: "X is true [c:abc] [c:def]."
+- Do not invent citation ids. If the context doesn't support the answer, say so plainly — never fabricate.
+
+Style:
+- Synthesise across sources when the answer spans them. Don't just paraphrase one passage.
+- Use markdown: **bold** for key points, bullet lists for enumerations, code blocks for code.
+- Be concise. Prefer 3 well-cited sentences to 8 hedged ones.
+- Items marked "related via shared topics" came in via tag overlap — treat as supporting, not primary.`,
     userMessage: `My saved knowledge base:\n\n${context}\n\nQuestion: ${question}`,
   };
 }

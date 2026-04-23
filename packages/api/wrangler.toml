@@ -9,6 +9,14 @@ BETTER_AUTH_URL = "https://internet-mindmap.vercel.app"
 # Web app URL — used for post-auth redirects and trusted origins.
 APP_BASE_URL = "https://internet-mindmap.vercel.app"
 
+# LLM model overrides (defaults live in ai/llm/models.ts).
+# Uncomment to flip without redeploying. April 2026 free Workers AI catalogue:
+#   synthesis: @cf/moonshotai/kimi-k2.6 | @cf/openai/gpt-oss-120b
+#   auxiliary: @cf/openai/gpt-oss-20b   | @cf/qwen/qwen3-30b-a3b-fp8
+# LLM_SYNTHESIS = "@cf/moonshotai/kimi-k2.6"
+# LLM_AUXILIARY = "@cf/openai/gpt-oss-20b"
+# LLM_TAGGING   = "@cf/openai/gpt-oss-20b"
+
 # DATABASE_URL is set as a Worker secret (not a var — keeps connection string out of source):
 #   wrangler secret put DATABASE_URL
 # Paste your Neon pooled connection string:

@@ -63,6 +63,18 @@ export const itemChunks = pgTable(
     itemId: text("item_id").notNull().references(() => items.id, { onDelete: "cascade" }),
     chunkIndex: integer("chunk_index").notNull(),
     embedding: vector("embedding", { dimensions: 768 }),
+    // Raw chunk text, populated alongside the vector. Lets the chat route
+    // pass the actual matched passage to the LLM instead of just the doc
+    // summary. Backfilled from `embedding_inputs.content` in 0004.
+    text: text("text"),
+    // Optional 1-2 sentence prefix that situates the chunk inside its parent
+    // document (Anthropic-style contextual retrieval, populated in Step 5
+    // of the RAG refactor). Embedded INTO the chunk text before vectorising
+    // and indexed alongside `text` in the generated `fts` tsvector.
+    contextPrefix: text("context_prefix"),
+    // `fts` is a Postgres GENERATED ALWAYS AS (to_tsvector(...)) STORED
+    // column managed by migration 0005. Not declared in drizzle to avoid
+    // confusing introspection — never written to from app code.
   },
   (table) => [
     index("item_chunks_item_id_idx").on(table.itemId),
