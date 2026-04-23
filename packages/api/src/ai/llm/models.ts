@@ -16,7 +16,10 @@ import type { Env } from "../../bindings";
 export const DEFAULT_MODELS = {
   synthesis: "@cf/moonshotai/kimi-k2.6",
   auxiliary: "@cf/openai/gpt-oss-20b",
-  tagging: "@cf/openai/gpt-oss-20b",
+  // Tagging uses AI SDK generateObject + JSON schema. gpt-oss-20b fails
+  // schema validation (AI_NoObjectGeneratedError) via workers-ai-provider;
+  // Qwen3-30B handles structured output reliably, so keep it here.
+  tagging: "@cf/qwen/qwen3-30b-a3b-fp8",
   reranker: "@cf/baai/bge-reranker-base",
 } as const;
 

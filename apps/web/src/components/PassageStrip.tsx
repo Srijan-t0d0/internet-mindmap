@@ -40,6 +40,8 @@ export default function PassageStrip({ passages }: PassageStripProps) {
           return (
             <div
               key={`${p.chunkId}-${i}`}
+              id={`cite-c-${p.chunkId}`}
+              data-cite-item={p.itemId}
               className="rounded-lg border overflow-hidden transition-colors duration-150"
               style={{
                 borderColor: "var(--color-border-subtle)",

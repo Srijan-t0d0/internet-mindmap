@@ -1,13 +1,86 @@
 "use client";
 
 import { useRef, useEffect } from "react";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import SourcesList from "./SourcesList";
 import PassageStrip from "./PassageStrip";
 import ConsideredDrawer from "./ConsideredDrawer";
 import FollowupChips from "./FollowupChips";
-import { useChatSession } from "../hooks/use-chat-session";
+import { useChatSession, type ChatPassage } from "../hooks/use-chat-session";
+
+// Map chunk-id suffix "...-c-<n>" to "c<n>"; otherwise fall back to first 6 chars.
+function shortChunkLabel(id: string): string {
+  const m = id.match(/-c-(\d+)$/);
+  return m ? `c${m[1]}` : id.slice(0, 6);
+}
+
+// Preprocess model citations so ReactMarkdown renders them as badges:
+//   [c:<chunkId>] → [cN](#cite-c-<chunkId>)   (N = passage index + 0)
+//   [i:<itemId>]  → [src](#cite-i-<itemId>)
+// The `components.a` override below styles these anchors as inline pill badges.
+function preprocessCitations(text: string, passages: ChatPassage[]): string {
+  return text
+    .replace(/\[c:([\w-]+)\]/g, (_m, id) => {
+      const label = shortChunkLabel(id);
+      return `[${label}](#cite-c-${id})`;
+    })
+    .replace(/\[i:([\w-]+)\]/g, (_m, id) => {
+      // If the item contributed a passage, reuse that passage's chunk label
+      // so the user can cross-reference the inline cite with the strip below.
+      const match = passages.find((p) => p.itemId === id);
+      const label = match ? shortChunkLabel(match.chunkId) : "src";
+      return `[${label}](#cite-i-${id})`;
+    });
+}
+
+// ReactMarkdown `a` override. Normal links render as-is; anchors whose href
+// starts with "#cite-" are the pre-processed citations and become badges.
+const citationComponents: Components = {
+  a({ href, children, ...rest }) {
+    if (typeof href === "string" && href.startsWith("#cite-")) {
+      return (
+        <a
+          href={href}
+          onClick={(e) => {
+            e.preventDefault();
+            const targetId = href.slice(1); // drop leading #
+            let el = document.getElementById(targetId);
+            // `cite-i-<itemId>` may not have a direct id (the item may have
+            // contributed no chunk passage); fall back to the first passage
+            // card for that item via the data attribute.
+            if (!el && targetId.startsWith("cite-i-")) {
+              const itemId = targetId.slice("cite-i-".length);
+              el = document.querySelector(
+                `[data-cite-item="${CSS.escape(itemId)}"]`
+              );
+            }
+            if (el) {
+              el.scrollIntoView({ behavior: "smooth", block: "center" });
+              el.classList.add("citation-flash");
+              setTimeout(() => el.classList.remove("citation-flash"), 1200);
+            }
+          }}
+          className="inline-flex items-center px-1.5 py-0.5 mx-0.5 rounded text-[10px] font-mono font-semibold tabular-nums align-baseline no-underline"
+          style={{
+            backgroundColor: "var(--color-accent-subtle)",
+            color: "var(--color-accent)",
+            verticalAlign: "baseline",
+            lineHeight: 1.2,
+          }}
+          title="Jump to source"
+        >
+          {children}
+        </a>
+      );
+    }
+    return (
+      <a href={href} target="_blank" rel="noopener noreferrer" {...rest}>
+        {children}
+      </a>
+    );
+  },
+};
 
 const SUGGESTIONS = [
   "What did I save about React?",
@@ -228,8 +301,11 @@ export default function ChatView() {
                           <div
                             className={`chat-markdown ${isLastStreaming ? "streaming-cursor" : ""}`}
                           >
-                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                              {text}
+                            <ReactMarkdown
+                              remarkPlugins={[remarkGfm]}
+                              components={citationComponents}
+                            >
+                              {preprocessCitations(text, passages)}
                             </ReactMarkdown>
                           </div>
                         )}
