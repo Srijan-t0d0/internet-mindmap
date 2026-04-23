@@ -14,7 +14,8 @@
     "db:migrate": "node scripts/migrate.mjs",
     "db:introspect": "drizzle-kit introspect",
     "db:studio": "drizzle-kit studio",
-    "backfill:contextual": "node scripts/backfill-contextual.mjs"
+    "backfill:contextual": "node scripts/backfill-contextual.mjs",
+    "eval:chat": "node scripts/eval-chat.mjs"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.7.6",

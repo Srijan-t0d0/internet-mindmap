@@ -1,0 +1,20 @@
+[
+  {
+    "id": "q1-sample",
+    "question": "REPLACE — your actual question here",
+    "expected_chunk_ids": [],
+    "expected_item_ids": [],
+    "reference_answer": "REPLACE — what an ideal answer should contain. Used by the LLM-as-judge faithfulness scorer."
+  },
+  {
+    "id": "q2-sample-followup",
+    "question": "and the second one?",
+    "history": [
+      { "role": "user", "text": "What did I save about React performance?" },
+      { "role": "assistant", "text": "You saved three articles about it..." }
+    ],
+    "expected_chunk_ids": [],
+    "expected_item_ids": [],
+    "reference_answer": "REPLACE"
+  }
+]
