@@ -10,11 +10,11 @@ import type { Env } from "../../bindings";
  *   - tagging    — structured-output ingest tagging (JSON schema, lower
  *                  hallucination tolerance than chat)
  *
- * Defaults reflect the April 2026 free Workers AI catalogue. Override per
+ * Defaults use Workers Free-plan eligible models. Override per
  * deployment via env vars without touching code (see wrangler.toml).
  */
 export const DEFAULT_MODELS = {
-  synthesis: "@cf/moonshotai/kimi-k2.6",
+  synthesis: "@cf/qwen/qwen3.8-27b",
   // Auxiliary fans out to contextualize, condense, followups, title. These
   // all need the model to emit either a JSON array or short structured text.
   // @cf/openai/gpt-oss-20b via workers-ai-provider was silently failing
