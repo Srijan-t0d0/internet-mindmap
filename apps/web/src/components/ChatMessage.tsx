@@ -71,6 +71,8 @@ const ChatMessage = memo(function ChatMessage({ message, isStreaming, onPick }: 
 }) {
   const text = getMessageText(message);
   const isUser = message.role === "user";
+  const reasoning = message.role === "assistant" ? message.parts.filter((part) => part.type === "reasoning") : [];
+  const isReasoningStreaming = isStreaming && reasoning.some((part) => part.state === "streaming");
   const sources = isUser ? [] : getMessageSources(message);
   const passages = isUser ? [] : getMessagePassages(message);
   const retrieval = isUser ? null : getMessageRetrieval(message);
@@ -91,11 +93,23 @@ const ChatMessage = memo(function ChatMessage({ message, isStreaming, onPick }: 
           borderRadius: isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
         }}>
           {isUser ? text : (
-            <div className={`chat-markdown ${isStreaming ? "streaming-cursor" : ""}`}>
-              <ReactMarkdown remarkPlugins={markdownPlugins} components={citationComponents}>
-                {preprocessCitations(text, passages)}
-              </ReactMarkdown>
-            </div>
+            <>
+              {reasoning.length > 0 && (
+                <details className={text ? "mb-3" : ""} style={{ color: "var(--color-text-muted)" }}>
+                  <summary className="cursor-pointer text-sm">{isReasoningStreaming ? "Thinking…" : "Reasoning"}</summary>
+                  <div className="whitespace-pre-wrap text-sm mt-2">{reasoning.map((part) => part.text).join("\n\n")}</div>
+                </details>
+              )}
+              {text ? (
+                <div className={`chat-markdown ${isStreaming ? "streaming-cursor" : ""}`}>
+                  <ReactMarkdown remarkPlugins={markdownPlugins} components={citationComponents}>
+                    {preprocessCitations(text, passages)}
+                  </ReactMarkdown>
+                </div>
+              ) : isStreaming && !isReasoningStreaming ? (
+                <p role="status" className="text-sm" style={{ color: "var(--color-text-muted)" }}>Preparing your answer…</p>
+              ) : null}
+            </>
           )}
         </div>
         {!isUser && passages.length > 0 && <PassageStrip passages={passages} />}

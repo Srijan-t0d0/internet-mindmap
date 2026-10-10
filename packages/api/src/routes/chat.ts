@@ -7,7 +7,7 @@ import {
   generateId,
   type UIMessage,
 } from "ai";
-import { createWorkersAI } from "workers-ai-provider";
+import { createChatModel } from "../ai/llm/chat-model";
 import type { Env, Variables } from "../bindings";
 import { getDb } from "../db/client";
 import { buildEmbeddingRegistry } from "../ai/embeddings/registry";
@@ -92,7 +92,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
 
   const userId = c.get("userId");
   const models = getModels(c.env);
-  const workersai = createWorkersAI({ binding: c.env.AI });
+  const chatModel = createChatModel(c.env.AI, models.synthesis);
 
   // ── Thread id: client-supplied or server-generated ──────────────────────
   // `useChat({ id })` on the client propagates this as `body.id` via
@@ -129,7 +129,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
   // ── Self-RAG: skip retrieval for purely conversational messages ─────────────
   if (isConversational(question)) {
     const result = streamText({
-      model: workersai(models.synthesis),
+      model: chatModel,
       system: "You are a friendly assistant for a personal knowledge base app. Respond naturally to short conversational messages.",
       messages: [{ role: "user", content: question }],
       maxOutputTokens: 256,
@@ -443,7 +443,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
 
         writer.write({ type: "data-status", data: { stage: "writing" }, transient: true });
         const result = streamText({
-          model: workersai(models.synthesis),
+          model: chatModel,
           system,
           messages: [{ role: "user", content: userMessage }],
           maxOutputTokens: 2048,

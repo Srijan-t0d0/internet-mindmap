@@ -35,6 +35,42 @@ describe("chat messages", () => {
     expect(html).not.toContain("streaming-cursor");
   });
 
+  it("renders collapsed plain reasoning, pending states, and the actual answer", () => {
+    const message: UIMessage = { id: "reasoning-answer", role: "assistant", parts: [
+      { type: "reasoning", text: "**Consider** the sources.\nThen answer.", state: "streaming" },
+    ] };
+    const render = (isStreaming: boolean) => renderToStaticMarkup(
+      <ChatMessage message={message} isStreaming={isStreaming} onPick={() => {}} />,
+    );
+    const thinking = render(true);
+    expect(thinking).toContain("<summary");
+    expect(thinking).toContain(">Thinking…</summary>");
+    expect(thinking).toContain("whitespace-pre-wrap");
+    expect(thinking).toContain("**Consider** the sources.\nThen answer.");
+    expect(thinking).not.toContain("<strong>");
+    expect(thinking).not.toMatch(/<details[^>]*\bopen/);
+    expect(thinking).not.toContain("streaming-cursor");
+    expect(thinking).not.toContain("Preparing your answer…");
+
+    message.parts = [{ type: "reasoning", text: "**Consider** the sources.", state: "done" }];
+    expect(render(true)).toContain(">Reasoning</summary>");
+    expect(render(true)).toContain("Preparing your answer…");
+    message.parts.push({ type: "text", text: "The **actual answer**." });
+    const completed = render(false);
+    expect(completed).toContain(">Reasoning</summary>");
+    expect(completed).toContain("The <strong>actual answer</strong>.");
+    expect(completed).not.toContain("Preparing your answer…");
+    expect(completed).not.toContain("Thinking…");
+
+    message.parts = [];
+    const pending = render(true);
+    expect(pending).toContain('role="status"');
+    expect(pending).toContain("Preparing your answer…");
+    expect(pending).not.toContain("<details");
+    expect(pending).not.toContain("Thinking…");
+    expect(pending).not.toContain("streaming-cursor");
+  });
+
   it("uses the latest structured parts and joins text without transient status", () => {
     const message: UIMessage = { id: "answer", role: "assistant", parts: [
       { type: "text", text: "One " },

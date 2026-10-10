@@ -64,7 +64,7 @@ const fake = {
     };
   },
   getDb: () => db,
-  createWorkersAI: () => () => ({}),
+  createChatModel: () => ({}),
   buildEmbeddingRegistry: () => ({ active: () => ({ id: "embed", embed() {
     state.events.push("embedding"); return state.embedding.promise;
   } }) }),
@@ -97,7 +97,7 @@ globalThis.__chatMocks = fake;
 const modules = {
   ai: ["streamText", "createUIMessageStreamResponse", "createUIMessageStream", "generateId"],
   "drizzle-orm": ["inArray", "and", "eq", "not", "sql"],
-  "workers-ai-provider": ["createWorkersAI"],
+  "../ai/llm/chat-model": ["createChatModel"],
   "../db/client": ["getDb"], "../ai/embeddings/registry": ["buildEmbeddingRegistry"],
   "../lib/vector-search": ["vectorSearchPassages", "ftsSearchPassages", "rrfFuse", "toVectorLiteral"],
   "../lib/rerank": ["rerank"], "../lib/condense": ["condenseQuery"],
