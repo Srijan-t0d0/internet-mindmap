@@ -3,6 +3,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { UIMessage, UIMessageChunk } from "ai";
 import { Chat } from "@ai-sdk/react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { ChatSessionsProvider } from "../lib/chat-sessions";
 import ChatMessage, { preprocessCitations } from "../components/ChatMessage";
 import ChatView from "../components/ChatView";
 import {
@@ -48,7 +50,11 @@ describe("chat messages", () => {
   });
 
   it("starts with accessible history loading and send disabled", () => {
-    const html = renderToStaticMarkup(<ChatView />);
+    const html = renderToStaticMarkup(
+      <QueryClientProvider client={new QueryClient()}>
+        <ChatSessionsProvider><ChatView /></ChatSessionsProvider>
+      </QueryClientProvider>,
+    );
     expect(html).toContain('role="status"');
     expect(html).toContain("Loading conversation…");
     expect(html).toMatch(/<input[^>]*disabled=""/);

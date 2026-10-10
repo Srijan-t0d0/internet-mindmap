@@ -1,9 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useSyncExternalStore } from "react";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport, type UIMessage, type SourceUrlUIPart } from "ai";
+import { useQueryClient } from "@tanstack/react-query";
+import type { UIMessage, SourceUrlUIPart } from "ai";
 import { THREAD_ID_KEY } from "../lib/threads";
+import { createChatSession, getChatSession, useChatSessions } from "../lib/chat-sessions";
+export { getProgressStage, loadThreadMessages, threadMessagesQueryOptions, type ChatStage } from "../lib/chat-sessions";
 
 export type ChatPassage = {
   chunkId: string;
@@ -22,14 +25,6 @@ export type ChatRetrievalSummary = {
   finalItemCount: number;
   condensed: string | null;
 };
-
-export type ChatStage = "searching" | "ranking" | "writing";
-
-export function getProgressStage(part: { type: string; data?: unknown }): ChatStage | null {
-  if (part.type !== "data-status" || !part.data || typeof part.data !== "object") return null;
-  const stage = "stage" in part.data ? part.data.stage : null;
-  return stage === "searching" || stage === "ranking" || stage === "writing" ? stage : null;
-}
 
 type DataPart =
   | { type: "data-passages"; data: { passages: ChatPassage[] } }
@@ -60,12 +55,6 @@ export function getMessageFollowups(msg: UIMessage): string[] {
   return findDataPart(msg, "data-followups")?.data.questions ?? [];
 }
 
-function getHeaders(): Record<string, string> {
-  const token = process.env.NEXT_PUBLIC_API_TOKEN;
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
-const chatTransport = new DefaultChatTransport({ api: "/api/chat", headers: getHeaders });
-
 function newThreadId(): string {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -77,127 +66,49 @@ function rememberThread(id: string) {
   try { window.localStorage.setItem(THREAD_ID_KEY, id); } catch { /* optional persistence */ }
 }
 
-export async function loadThreadMessages(threadId: string, signal?: AbortSignal): Promise<UIMessage[]> {
-  const res = await fetch(`/api/threads/${encodeURIComponent(threadId)}`, {
-    credentials: "include",
-    headers: getHeaders(),
-    signal,
-  });
-  if (res.status === 404) return []; // New threads aren't persisted until their first turn.
-  if (!res.ok) throw new Error(`Could not load conversation (${res.status}).`);
-  const data = (await res.json()) as { messages?: UIMessage[] };
-  return data.messages ?? [];
-}
-
 export function useChatSession() {
-  const [confirmClear, setConfirmClear] = useState(false);
+  const queryClient = useQueryClient();
+  const sessions = useChatSessions();
+  const [pendingSession] = useState(() => createChatSession("pending-history", queryClient));
   const [threadId, setThreadId] = useState<string | null>(null);
-  const [hydrated, setHydrated] = useState(false);
-  const [historyError, setHistoryError] = useState<string | null>(null);
-  const [historyRevision, setHistoryRevision] = useState(0);
-  const [progress, setProgress] = useState<ChatStage | null>(null);
-  const readyRef = useRef(false);
-  const sendGateRef = useRef(false);
-  const acceptingProgressRef = useRef(false);
-  const turnRef = useRef(0);
-  const historyRequestRef = useRef<AbortController | null>(null);
+  const [confirmClear, setConfirmClear] = useState(false);
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const { messages, sendMessage: sdkSendMessage, status, error, clearError, stop: sdkStop, setMessages } = useChat({
-    id: threadId ?? "pending-history",
-    transport: chatTransport,
-    onData(part) {
-      const stage = getProgressStage(part);
-      // AI SDK routes transient data to onData without adding it to message.parts.
-      if (readyRef.current && acceptingProgressRef.current && stage) setProgress(stage);
-    },
-    onError: (err) => console.error("[chat]", err),
-  });
+  const session = threadId ? getChatSession(sessions, threadId, queryClient) : pendingSession;
+  const { hydrated, historyError, progress } = useSyncExternalStore(session.subscribe, session.getSnapshot, session.getSnapshot);
+  const { messages, status, error, clearError } = useChat({ chat: session.chat });
   const isStreaming = status === "streaming" || status === "submitted";
   const canSend = hydrated && !historyError && !isStreaming;
-  sendGateRef.current = canSend;
 
   useEffect(() => {
     let stored: string | null = null;
     try { stored = window.localStorage.getItem(THREAD_ID_KEY); } catch { /* optional persistence */ }
     const id = stored ?? newThreadId();
+    getChatSession(sessions, id, queryClient, !stored);
     rememberThread(id);
     setThreadId(id);
-  }, []);
+  }, [sessions, queryClient]);
 
-  // Key history loading on the selected id, not on the request completion.
-  // Cleanup and the abort check protect against responses racing a thread switch.
   useEffect(() => {
-    if (!threadId) return;
-    const controller = new AbortController();
-    historyRequestRef.current = controller;
-    readyRef.current = false;
-    setHydrated(false);
-    setHistoryError(null);
-    void loadThreadMessages(threadId, controller.signal).then((history) => {
-      if (controller.signal.aborted) return;
-      setMessages(history);
-      readyRef.current = true;
-    }).catch((err: unknown) => {
-      if (controller.signal.aborted) return;
-      setHistoryError(err instanceof Error ? err.message : "Could not load conversation.");
-    }).finally(() => {
-      if (!controller.signal.aborted) setHydrated(true);
-    });
-    return () => controller.abort();
-  }, [threadId, historyRevision, setMessages]);
-
-  const prevStatusRef = useRef(status);
-  useEffect(() => {
-    if (!isStreaming) setProgress(null);
-    if (prevStatusRef.current !== "ready" && status === "ready" && messages.length > 0) {
-      window.dispatchEvent(new CustomEvent("chat:threads-changed"));
-    }
-    prevStatusRef.current = status;
-  }, [status, isStreaming, messages.length]);
-
-  const sendText = useCallback((text: string) => {
-    if (!readyRef.current || !sendGateRef.current || !text.trim()) return;
-    sendGateRef.current = false;
-    acceptingProgressRef.current = true;
-    setProgress(null);
-    const turn = ++turnRef.current;
-    void sdkSendMessage({ text: text.trim() }).finally(() => {
-      // An old turn finishing after a switch must not clear the new turn's status.
-      if (turn !== turnRef.current) return;
-      acceptingProgressRef.current = false;
-      setProgress(null);
-    });
-  }, [sdkSendMessage]);
-
-  const stop = useCallback(() => {
-    acceptingProgressRef.current = false;
-    setProgress(null);
-    void sdkStop();
-  }, [sdkStop]);
+    if (threadId) void session.load();
+  }, [threadId, session]);
 
   const switchThread = useCallback((id: string) => {
-    // Close the send gate and cancel synchronously, before React effects run.
-    readyRef.current = false;
-    turnRef.current += 1;
-    historyRequestRef.current?.abort();
-    stop();
-    clearError();
-    setProgress(null);
-    setHydrated(false);
-    setHistoryError(null);
-    setMessages([]);
+    if (id === threadId) return;
+    session.stop();
     setConfirmClear(false);
     if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
     rememberThread(id);
     setThreadId(id);
-    setHistoryRevision((revision) => revision + 1);
-  }, [stop, clearError, setMessages]);
+  }, [session, threadId]);
 
-  const startNewThread = useCallback(() => switchThread(newThreadId()), [switchThread]);
-  const retryHistory = useCallback(() => {
-    if (threadId) switchThread(threadId);
-  }, [threadId, switchThread]);
+  const startNewThread = useCallback(() => {
+    const id = newThreadId();
+    getChatSession(sessions, id, queryClient, true);
+    switchThread(id);
+  }, [sessions, queryClient, switchThread]);
+  const retryHistory = useCallback(() => { void session.load(); }, [session]);
+  const sendText = useCallback((text: string) => { void session.sendText(text); }, [session]);
+  const stop = useCallback(() => session.stop(), [session]);
 
   const handleClear = useCallback(() => {
     if (confirmClear) {
