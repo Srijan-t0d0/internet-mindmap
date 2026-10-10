@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import { and, eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import type { EmbeddingProvider } from "@internet-mindmap/shared";
 import * as schema from "../../db/schema";
 import type { getDb } from "../../db/client";
@@ -9,8 +9,7 @@ type Db = ReturnType<typeof getDb>;
 
 /**
  * Hash content for idempotency. Uses Web Crypto (available in Workers).
- * sha256(content) → hex. Short-circuits re-embed when identical input
- * already has a done job row.
+ * sha256(content) → hex, stored with each input for change detection.
  */
 export async function hashContent(content: string): Promise<string> {
   const buf = new TextEncoder().encode(content);
@@ -28,7 +27,7 @@ export interface PendingEmbeddingInput {
   modality: "text" | "image" | "video_frame";
   content: string;
   chunkIndex: number;
-  /** The chunker id that produced this input. Must match a provider's chunkerId or be "whole-doc-enriched". */
+  /** The chunker id that produced this input. */
   chunkerId: string;
 }
 
@@ -55,64 +54,34 @@ export async function upsertEmbeddingInputs(
   itemId: string,
   pending: PendingEmbeddingInput[]
 ): Promise<{ inputId: string; contentHash: string; pending: PendingEmbeddingInput }[]> {
-  const out: { inputId: string; contentHash: string; pending: PendingEmbeddingInput }[] = [];
-  for (const p of pending) {
-    const contentHash = await hashContent(p.content);
-
-    // Check if a row already exists for this (item, modality, chunk_index).
-    const existing = await db
-      .select({
-        id: schema.embeddingInputs.id,
-        contentHash: schema.embeddingInputs.contentHash,
-      })
-      .from(schema.embeddingInputs)
-      .where(
-        and(
-          eq(schema.embeddingInputs.itemId, itemId),
-          eq(schema.embeddingInputs.modality, p.modality),
-          eq(schema.embeddingInputs.chunkIndex, p.chunkIndex)
-        )
-      )
-      .then((rows) => rows[0] ?? null);
-
-    if (existing) {
-      if (existing.contentHash !== contentHash) {
-        // Content changed — overwrite. Jobs referencing this input stay
-        // linked; a re-embed pass will re-run them based on stale hash logic.
-        await db
-          .update(schema.embeddingInputs)
-          .set({
-            content: p.content,
-            contentHash,
-            chunkerId: p.chunkerId,
-          })
-          .where(eq(schema.embeddingInputs.id, existing.id));
-      }
-      out.push({ inputId: existing.id, contentHash, pending: p });
-      continue;
-    }
-
-    const id = uuidv4();
-    await db.insert(schema.embeddingInputs).values({
-      id,
-      itemId,
-      modality: p.modality,
-      chunkIndex: p.chunkIndex,
-      content: p.content,
-      contentHash,
-      chunkerId: p.chunkerId,
-    });
-    out.push({ inputId: id, contentHash, pending: p });
-  }
-  return out;
+  if (pending.length === 0) return [];
+  const values = await Promise.all(pending.map(async (p) => ({
+    id: uuidv4(), itemId, modality: p.modality, chunkIndex: p.chunkIndex,
+    content: p.content, contentHash: await hashContent(p.content), chunkerId: p.chunkerId,
+  })));
+  const rows = await db.insert(schema.embeddingInputs).values(values)
+    .onConflictDoUpdate({
+      target: [schema.embeddingInputs.itemId, schema.embeddingInputs.modality, schema.embeddingInputs.chunkIndex],
+      set: {
+        content: sql`excluded.content`, contentHash: sql`excluded.content_hash`,
+        chunkerId: sql`excluded.chunker_id`,
+      },
+    })
+    .returning({ id: schema.embeddingInputs.id, modality: schema.embeddingInputs.modality,
+      chunkIndex: schema.embeddingInputs.chunkIndex, contentHash: schema.embeddingInputs.contentHash });
+  const byKey = new Map(rows.map((row) => [`${row.modality}:${row.chunkIndex}`, row]));
+  return pending.map((p) => {
+    const row = byKey.get(`${p.modality}:${p.chunkIndex}`)!;
+    return { inputId: row.id, contentHash: row.contentHash, pending: p };
+  });
 }
 
 /**
  * Run one provider over a prepared set of inputs, record jobs, and
  * optionally mirror the vectors into a legacy destination.
  *
- * `legacyDestinations` is keyed by (modality, chunkIndex) — the caller
- * decides whether this provider owns the legacy columns.
+ * The optional writer receives the full batch and returns destinations
+ * in the same order, so database requests do not grow with chunk count.
  */
 export async function runProviderEmbed(
   db: Db,
@@ -121,10 +90,8 @@ export async function runProviderEmbed(
   itemId: string,
   inputs: { inputId: string; pending: PendingEmbeddingInput }[],
   legacyWriter?: (
-    chunkIndex: number,
-    modality: string,
-    vector: number[]
-  ) => Promise<LegacyDestination | null>
+    embeddings: { chunkIndex: number; modality: string; vector: number[] }[]
+  ) => Promise<(LegacyDestination | null)[]>
 ): Promise<void> {
   // Filter to inputs this provider can handle.
   const supported = inputs.filter((i) =>
@@ -139,52 +106,27 @@ export async function runProviderEmbed(
     }))
   );
 
-  for (let i = 0; i < supported.length; i++) {
-    const { inputId, pending } = supported[i];
-    const vector = vectors[i];
-
-    const dest = legacyWriter
-      ? await legacyWriter(pending.chunkIndex, pending.modality, vector)
-      : null;
-
-    // Upsert job row. Conflict on (input_id, provider_id).
-    const existingJob = await db
-      .select({ id: schema.embeddingJobs.id })
-      .from(schema.embeddingJobs)
-      .where(
-        and(
-          eq(schema.embeddingJobs.inputId, inputId),
-          eq(schema.embeddingJobs.providerId, provider.id)
-        )
-      )
-      .then((rows) => rows[0] ?? null);
-
-    if (existingJob) {
-      await db
-        .update(schema.embeddingJobs)
-        .set({
-          status: "done",
-          destinationTable: dest?.table ?? null,
-          destinationId: dest?.id ?? null,
-          lastError: null,
-          completedAt: new Date(),
-        })
-        .where(eq(schema.embeddingJobs.id, existingJob.id));
-    } else {
-      await db.insert(schema.embeddingJobs).values({
-        id: uuidv4(),
-        inputId,
-        itemId,
-        providerId: provider.id,
-        providerVersion: provider.version,
-        dims: provider.dims,
-        status: "done",
-        destinationTable: dest?.table ?? null,
-        destinationId: dest?.id ?? null,
-        completedAt: new Date(),
-      });
-    }
+  if (vectors.length !== supported.length) {
+    throw new Error(`Embedding provider ${provider.id} returned ${vectors.length} vectors for ${supported.length} inputs`);
   }
+
+  const destinations = legacyWriter ? await legacyWriter(supported.map(({ pending }, i) => ({
+    chunkIndex: pending.chunkIndex, modality: pending.modality, vector: vectors[i],
+  }))) : supported.map(() => null);
+  const jobs = supported.map(({ inputId }, i) => ({
+    id: uuidv4(), inputId, itemId, providerId: provider.id,
+    providerVersion: provider.version, dims: provider.dims, status: "done" as const,
+    destinationTable: destinations[i]?.table ?? null,
+    destinationId: destinations[i]?.id ?? null, completedAt: new Date(),
+  }));
+  await db.insert(schema.embeddingJobs).values(jobs).onConflictDoUpdate({
+    target: [schema.embeddingJobs.inputId, schema.embeddingJobs.providerId],
+    set: {
+      status: "done", destinationTable: sql`excluded.destination_table`,
+      destinationId: sql`excluded.destination_id`, lastError: null,
+      completedAt: sql`excluded.completed_at`,
+    },
+  });
 
   // Suppress unused-import warnings until registry is consumed here.
   void registry;

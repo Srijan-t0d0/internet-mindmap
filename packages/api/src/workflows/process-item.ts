@@ -272,36 +272,27 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
             provider,
             itemId,
             inputs,
-            async (chunkIndex, modality, vector): Promise<LegacyDestination | null> => {
-              // Shadow providers stay out of the legacy columns — they write
-              // to embedding_jobs only. Dedicated per-model tables come later.
-              if (!isActive) return null;
-              if (modality !== "text") return null;
-
-              if (chunkIndex === 0) {
-                // Whole-doc enriched vector → items.embedding
-                await db
-                  .update(schema.items)
-                  .set({ embedding: vector, updatedAt: new Date() })
+            async (embeddings): Promise<(LegacyDestination | null)[]> => {
+              // Shadow providers record jobs without touching searchable vectors.
+              if (!isActive) return embeddings.map(() => null);
+              const textEmbeddings = embeddings.filter((e) => e.modality === "text");
+              const wholeDoc = textEmbeddings.find((e) => e.chunkIndex === 0);
+              if (wholeDoc) {
+                await db.update(schema.items)
+                  .set({ embedding: wholeDoc.vector, updatedAt: new Date() })
                   .where(eq(schema.items.id, itemId));
-                return { table: "items", id: itemId };
               }
-              // Per-chunk vector → item_chunks. We also persist the raw
-              // chunk text and (when contextualised) the prefix, so the
-              // chat route can pass the matched passage to the LLM and
-              // the FTS index can cover both.
-              const chunkId = chunkRowIds.get(chunkIndex)!;
-              const chunkText = chunks[chunkIndex - 1] ?? null;
-              const prefix = prefixes[chunkIndex - 1] || null;
-              await db.insert(schema.itemChunks).values({
-                id: chunkId,
-                itemId,
-                chunkIndex: chunkIndex - 1, // back to 0-indexed on disk
-                embedding: vector,
-                text: chunkText,
-                contextPrefix: prefix,
-              });
-              return { table: "item_chunks", id: chunkId };
+              const chunkRows = textEmbeddings.filter((e) => e.chunkIndex > 0)
+                .map(({ chunkIndex, vector }) => ({
+                  id: chunkRowIds.get(chunkIndex)!, itemId,
+                  chunkIndex: chunkIndex - 1, embedding: vector,
+                  text: chunks[chunkIndex - 1] ?? null,
+                  contextPrefix: prefixes[chunkIndex - 1] || null,
+                }));
+              if (chunkRows.length) await db.insert(schema.itemChunks).values(chunkRows);
+              return embeddings.map(({ modality, chunkIndex }) => modality !== "text" ? null
+                : chunkIndex === 0 ? { table: "items", id: itemId }
+                : { table: "item_chunks", id: chunkRowIds.get(chunkIndex)! });
             }
           );
 
