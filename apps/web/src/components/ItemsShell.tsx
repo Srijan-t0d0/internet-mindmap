@@ -101,6 +101,12 @@ export default function ItemsShell({ initial }: { initial: InitialItems }) {
             style={{ color: "var(--color-text-primary)" }}>Reading List</h2>
         )}
 
+        {retryMutation.error && (
+          <p role="alert" className="max-w-2xl mx-auto mb-4 text-sm" style={{ color: "var(--color-error)" }}>
+            Couldn't retry this item. Please try again.
+          </p>
+        )}
+
         <div aria-busy={isFetching}>
           {isPending ? (
             <>
@@ -143,7 +149,8 @@ export default function ItemsShell({ initial }: { initial: InitialItems }) {
 
       {selectedItem && (
         <DetailPanel item={selectedItem} onClose={() => setSelectedItemId(null)}
-          onToggleRead={handleToggleRead} onDelete={handleDelete} />
+          onToggleRead={handleToggleRead} onDelete={handleDelete}
+          onRetry={handleRetry} isRetrying={retryMutation.isPending} />
       )}
     </>
   );

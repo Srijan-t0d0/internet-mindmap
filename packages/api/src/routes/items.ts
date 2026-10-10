@@ -6,6 +6,7 @@ import type { SourceType } from "@internet-mindmap/shared";
 import type { Env, Variables } from "../bindings";
 import { getDb } from "../db/client";
 import { enqueueItem } from "../lib/enqueue";
+import { expireStaleItems } from "../lib/item-timeout";
 import * as schema from "../db/schema";
 
 const sourceTypes = ["youtube", "reddit", "twitter", "github", "hackernews", "substack", "blog", "other"] as const;
@@ -37,6 +38,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
       const userId = c.get("userId");
 
       const db = getDb(c.env);
+      await expireStaleItems(db, userId);
 
       // Build conditions
       const conditions = [];
@@ -127,6 +129,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
     const id = c.req.param("id")!;
     const userId = c.get("userId");
     const db = getDb(c.env);
+    await expireStaleItems(db, userId);
 
     const item = await db
       .select()
@@ -242,6 +245,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
     const impersonate = c.req.header("x-admin-user-id");
     const userId =
       authUserId === "agent" && impersonate ? impersonate : authUserId;
+    await expireStaleItems(db, userId);
 
     const item = await db
       .select()
@@ -258,14 +262,23 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
       );
     }
 
-    await db
+    const claimed = await db
       .update(schema.items)
       .set({
         status: "pending",
         lastError: null,
         updatedAt: new Date(),
       })
-      .where(eq(schema.items.id, id));
+      .where(and(
+        eq(schema.items.id, id),
+        eq(schema.items.userId, userId),
+        eq(schema.items.status, item.status),
+        eq(schema.items.updatedAt, item.updatedAt),
+      ))
+      .returning({ id: schema.items.id });
+    if (claimed.length === 0) {
+      return c.json({ error: "Item has changed. Refresh before retrying." }, 409);
+    }
 
     const workflowId = `${id}-${force ? "reprocess" : "retry"}-${Date.now()}`;
     await enqueueItem(c.env, workflowId, {

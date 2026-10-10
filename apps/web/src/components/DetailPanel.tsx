@@ -10,9 +10,11 @@ interface DetailPanelProps {
   onClose: () => void;
   onToggleRead: (item: Item) => void;
   onDelete: (item: Item) => void;
+  onRetry: (item: Item) => void;
+  isRetrying: boolean;
 }
 
-export default function DetailPanel({ item, onClose, onToggleRead, onDelete }: DetailPanelProps) {
+export default function DetailPanel({ item, onClose, onToggleRead, onDelete, onRetry, isRetrying }: DetailPanelProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -138,6 +140,19 @@ export default function DetailPanel({ item, onClose, onToggleRead, onDelete }: D
             Delete
           </button>
         </div>
+
+        {item.status === "error" && (
+          <div className="space-y-2" role="alert">
+            <p className="text-sm" style={{ color: "var(--color-error)" }}>
+              Processing failed{item.last_error ? `: ${item.last_error}` : ""}
+            </p>
+            <button type="button" onClick={() => onRetry(item)} disabled={isRetrying}
+              className="text-sm font-medium px-4 py-2 rounded-md border disabled:opacity-50"
+              style={{ color: "var(--color-accent)", borderColor: "var(--color-accent)" }}>
+              {isRetrying ? "Retrying…" : "Retry"}
+            </button>
+          </div>
+        )}
 
         {/* Metadata */}
         {(item.author || item.site_name || item.published || item.description) && (
