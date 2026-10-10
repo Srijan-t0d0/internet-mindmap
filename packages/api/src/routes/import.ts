@@ -6,6 +6,7 @@ import { zValidator } from "@hono/zod-validator";
 import type { SourceType } from "@internet-mindmap/shared";
 import type { Env, Variables } from "../bindings";
 import { getDb } from "../db/client";
+import { enqueueItem } from "../lib/enqueue";
 import * as schema from "../db/schema";
 
 function parseBookmarksHtml(html: string): { url: string; title: string }[] {
@@ -83,9 +84,9 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
           workflowBatches.push(
             Promise.all(
               chunk.map((item) =>
-                c.env.PROCESS_ITEM.create({
-                  id: `${item.id}-${Date.now()}`,
-                  params: { itemId: item.id, url: item.url, source_type: item.sourceType, userId },
+                enqueueItem(c.env, `${item.id}-${Date.now()}`, {
+                  itemId: item.id, url: item.url, source_type: item.sourceType, userId,
+                  requestId: c.get("requestId"),
                 })
               )
             )

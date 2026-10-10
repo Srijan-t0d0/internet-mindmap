@@ -19,6 +19,8 @@ import { getModels } from "../ai/llm/models";
 import { contextualizeChunks } from "../lib/contextualize";
 import { fetchYouTubeTranscript } from "../lib/youtube";
 import { recordUsageEvent, estimateEmbeddingTokens } from "../lib/usage";
+import { createLogger, log } from "evlog";
+import type { ProcessItemParams } from "../lib/enqueue";
 import type { Env } from "../bindings";
 
 /**
@@ -27,13 +29,6 @@ import type { Env } from "../bindings";
  * Bumped whenever the composition logic changes.
  */
 const ENRICHED_CHUNKER_ID = "whole-doc-enriched-v1";
-
-interface ProcessItemParams {
-  itemId: string;
-  url: string;
-  source_type: string;
-  userId?: string;
-}
 
 /**
  * Normalise a tag to consistent kebab-case.
@@ -53,14 +48,39 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
   async run(event: WorkflowEvent<ProcessItemParams>, step: WorkflowStep) {
     const { itemId, url, source_type } = event.payload;
     const env = this.env;
-    const db = getDb(env);
-    const registry = buildEmbeddingRegistry(env);
-    const activeProvider = registry.active();
-    const writers = registry.writers();
+    const context = { requestId: event.payload.requestId, workflowId: event.instanceId, itemId, sourceType: source_type };
+    const runLog = createLogger({ ...context, event: "workflow.run" });
+    let currentStep = "initialize";
+    let failure: unknown;
+    let failed = false;
+    let errorStatusPersisted = false;
+    const runStep = <T extends Rpc.Serializable<T>>(name: string, callback: () => Promise<T>) => {
+      currentStep = name;
+      return step.do(name, async ({ attempt }) => {
+        const stepLog = createLogger({ ...context, event: "workflow.step", step: name, attempt });
+        let error: unknown;
+        let success = false;
+        try {
+          const result = await callback();
+          success = true;
+          return result;
+        } catch (err) {
+          error = err;
+          throw err;
+        } finally {
+          if (!success) stepLog.error(error instanceof Error ? error : String(error));
+          stepLog.emit({ outcome: success ? "complete" : "error" });
+        }
+      });
+    };
 
     try {
+      const db = getDb(env);
+      const registry = buildEmbeddingRegistry(env);
+      const activeProvider = registry.active();
+      const writers = registry.writers();
       // Step 1: Mark as processing
-      await step.do("update-status", async () => {
+      await runStep("update-status", async () => {
         await db
           .update(schema.items)
           .set({ status: "processing", updatedAt: new Date() })
@@ -68,7 +88,7 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
       });
 
       // Step 2: Fetch content
-      const content = await step.do("fetch-content", async () => {
+      const content = await runStep("fetch-content", async () => {
         const item = await db
           .select({
             rawContent: schema.items.rawContent,
@@ -99,7 +119,7 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
       });
 
       // Step 3: Generate tags + summary
-      const llmResult = await step.do("generate-tags", async () => {
+      const llmResult = await runStep("generate-tags", async () => {
         if (!content.content) {
           return { betterTitle: "", tags: [], summary: "No content could be extracted.", keyPassages: [] };
         }
@@ -131,15 +151,17 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
         );
 
         if (event.payload.userId) {
-          recordUsageEvent(env, {
+          await recordUsageEvent(env, {
             userId: event.payload.userId,
+            requestId: context.requestId,
+            workflowId: context.workflowId,
             eventType: "tagging",
             source: "workflow",
             model: taggingModel,
             inputTokens: result.usage?.inputTokens ?? 0,
             outputTokens: result.usage?.outputTokens ?? 0,
             metadata: { itemId },
-          }).catch(() => {});
+          });
         }
 
         return result;
@@ -153,7 +175,7 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
       // the registry (active + shadow). Only the active provider mirrors
       // into the legacy items.embedding / item_chunks.embedding columns
       // that search.ts reads from today.
-      await step.do("embed-and-store", async () => {
+      await runStep("embed-and-store", async () => {
         // ── Compose the "whole doc enriched" input ────────────────────────
         const parts: string[] = [content.title];
         if (content.notes) parts.push(`User notes: ${content.notes}`);
@@ -208,8 +230,10 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
         ];
 
         if (event.payload.userId && isContextualised) {
-          recordUsageEvent(env, {
+          await recordUsageEvent(env, {
             userId: event.payload.userId,
+            requestId: context.requestId,
+            workflowId: context.workflowId,
             eventType: "contextualize",
             source: "workflow",
             model: getModels(env).auxiliary,
@@ -218,7 +242,7 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
               chunkCount: chunks.length,
               prefixedCount: prefixes.filter(Boolean).length,
             },
-          }).catch(() => {});
+          });
         }
 
         const inputs = await upsertEmbeddingInputs(db, itemId, pending);
@@ -285,14 +309,16 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
             const totalChars = pending
               .map((p) => p.content.length)
               .reduce((a, b) => a + b, 0);
-            recordUsageEvent(env, {
+            await recordUsageEvent(env, {
               userId: event.payload.userId,
+              requestId: context.requestId,
+              workflowId: context.workflowId,
               eventType: "embedding",
               source: "workflow",
               model: provider.id,
               inputTokens: estimateEmbeddingTokens(" ".repeat(totalChars)),
               metadata: { itemId, shadow: !isActive, inputs: pending.length },
-            }).catch(() => {});
+            });
           }
         }
 
@@ -313,7 +339,7 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
       });
 
       // Step 5: Upsert tags (unchanged)
-      await step.do("store-tags", async () => {
+      await runStep("store-tags", async () => {
         const tagNames = llmResult.tags
           .map(normalizeTag)
           .filter(Boolean)
@@ -334,32 +360,45 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
             tagRow = { id: tagId };
           }
 
-          try {
-            await db.insert(schema.itemTags).values({
-              itemId,
-              tagId: tagRow.id,
-              source: "auto",
-              position: i,
-            });
-          } catch {
-            // Duplicate — already linked
-          }
+          await db.insert(schema.itemTags).values({
+            itemId,
+            tagId: tagRow.id,
+            source: "auto",
+            position: i,
+          }).onConflictDoNothing();
         }
       });
     } catch (err) {
-      await step.do("mark-error", async () => {
-        const message = err instanceof Error ? err.message : String(err);
-        await db
-          .update(schema.items)
-          .set({
+      failure = err;
+      failed = true;
+      const failedStep = currentStep;
+      try {
+        await runStep("mark-error", async () => {
+          const db = getDb(env);
+          await db.update(schema.items).set({
             status: "error",
-            lastError: message,
+            lastError: "Processing failed; see workflow logs for details.",
             errorCount: sql`error_count + 1`,
             updatedAt: new Date(),
-          })
-          .where(eq(schema.items.id, itemId));
-      });
+          }).where(eq(schema.items.id, itemId));
+        });
+        errorStatusPersisted = true;
+      } catch (statusError) {
+        log.error({
+          event: "workflow.error_status.failed",
+          ...context, failedStep, error: statusError, originalError: err,
+        });
+      }
+      currentStep = failedStep;
+      // Preserve the original failure even if recording its status also failed.
       throw err;
+    } finally {
+      if (failed) runLog.error(failure instanceof Error ? failure : String(failure));
+      runLog.emit({
+        outcome: failed ? "error" : "complete", step: currentStep,
+        _durationMs: Date.now() - event.timestamp.getTime(),
+        errorStatusPersisted: failed ? errorStatusPersisted : undefined,
+      });
     }
   }
 }

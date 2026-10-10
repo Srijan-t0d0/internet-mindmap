@@ -1,4 +1,5 @@
 import { YoutubeTranscript } from "youtube-transcript";
+import { log } from "evlog";
 
 export function extractYouTubeId(url: string): string | null {
   const patterns = [
@@ -23,11 +24,16 @@ export async function fetchYouTubeTranscript(url: string): Promise<string | null
     let transcript;
     try {
       transcript = await YoutubeTranscript.fetchTranscript(videoId, { lang: "en" });
-    } catch {
+    } catch (error) {
+      log.info({ event: "youtube.transcript.language_fallback",
+        videoId,
+        error,
+      });
       transcript = await YoutubeTranscript.fetchTranscript(videoId);
     }
     return transcript.map((entry) => entry.text).join(" ");
-  } catch {
+  } catch (error) {
+    log.warn({ event: "youtube.transcript.failed", videoId, error });
     return null;
   }
 }

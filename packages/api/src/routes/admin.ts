@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import { eq } from "drizzle-orm";
-import type { Env } from "../bindings";
+import type { Env, Variables } from "../bindings";
 import { getDb } from "../db/client";
+import { enqueueItem } from "../lib/enqueue";
 import * as schema from "../db/schema";
 
 const BATCH_SIZE = 100;
@@ -14,7 +15,7 @@ const BATCH_SIZE = 100;
  *
  * Auth: Bearer ${AGENT_API_TOKEN} (inline — no requireAuth middleware on /api/admin)
  */
-const app = new Hono<{ Bindings: Env }>().post("/reindex", async (c) => {
+const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/reindex", async (c) => {
   // Manual auth — AGENT_API_TOKEN bearer token only
   const authHeader = c.req.header("Authorization");
   if (!authHeader || authHeader !== `Bearer ${c.env.AGENT_API_TOKEN}`) {
@@ -47,14 +48,12 @@ const app = new Hono<{ Bindings: Env }>().post("/reindex", async (c) => {
         .where(eq(schema.items.id, item.id));
 
       const workflowId = `reindex-${item.id}-${Date.now()}`;
-      await c.env.PROCESS_ITEM.create({
-        id: workflowId,
-        params: {
-          itemId: item.id,
-          url: item.url,
-          source_type: item.sourceType,
-          userId: item.userId ?? undefined,
-        },
+      await enqueueItem(c.env, workflowId, {
+        itemId: item.id,
+        url: item.url,
+        source_type: item.sourceType,
+        userId: item.userId ?? undefined,
+        requestId: c.get("requestId"),
       });
       queued++;
     }

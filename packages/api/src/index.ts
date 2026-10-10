@@ -1,5 +1,7 @@
 import { Hono } from "hono";
-import { logger } from "hono/logger";
+import { HTTPException } from "hono/http-exception";
+import { evlog } from "evlog/hono";
+import "./lib/logging";
 import type { Env, Variables } from "./bindings";
 import { corsMiddleware } from "./middleware/cors";
 import { requireAuth } from "./middleware/auth";
@@ -21,7 +23,19 @@ export { ProcessItemWorkflow } from "./workflows/process-item";
 const app = new Hono<{ Bindings: Env; Variables: Variables }>();
 
 // Global middleware
-app.use(logger());
+app.use("*", evlog());
+app.use("*", async (c, next) => {
+  const requestId = crypto.randomUUID();
+  c.set("requestId", requestId);
+  c.get("log").set({ event: "http.request", requestId });
+  c.header("X-Request-Id", requestId);
+  await next();
+  c.get("log").set({ route: c.req.routePath });
+});
+app.onError((error, c) => {
+  if (error instanceof HTTPException) return error.getResponse();
+  return c.json({ error: "Internal server error", requestId: c.get("requestId") }, 500);
+});
 app.use("*", corsMiddleware);
 
 // Create one Better Auth instance per request and store it on context.

@@ -1,4 +1,5 @@
 import type { TagsAndSummary } from "@internet-mindmap/shared";
+import { log } from "evlog";
 
 export function buildTaggingPrompt(
   title: string,
@@ -113,6 +114,7 @@ export function parseTagsResponse(text: string): TagsAndSummary {
         : [],
     };
   } catch {
+    log.warn({ event: "ai.tagging.invalid_output", reason: "parse_failed" });
     return { betterTitle: "", tags: [], summary: text.slice(0, 500), keyPassages: [] };
   }
 }

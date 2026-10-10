@@ -24,6 +24,7 @@ import { generateThreadTitle } from "../lib/title";
 import { buildChatMessages } from "../ai/llm/prompts";
 import { getModels, DEFAULT_MODELS } from "../ai/llm/models";
 import { recordUsageEvent, estimateEmbeddingTokens } from "../lib/usage";
+import { log } from "evlog";
 import * as schema from "../db/schema";
 
 // ── Pre-classifier: detect purely conversational messages that don't need
@@ -158,8 +159,9 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
   );
 
   if (retrievalQuery !== question) {
-    recordUsageEvent(c.env, {
+    c.executionCtx.waitUntil(recordUsageEvent(c.env, {
       userId,
+      requestId: c.get("requestId"),
       eventType: "condense",
       source: "web",
       model: models.auxiliary,
@@ -168,7 +170,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
         rewritten: retrievalQuery.slice(0, 200),
         priorTurns: priorTurns.length,
       },
-    }).catch(() => {});
+    }));
   }
 
   // ── Embed the (condensed) query. HyDE was deleted — Anthropic's contextual
@@ -181,14 +183,15 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
     { modality: "text", content: retrievalQuery },
   ]);
 
-  recordUsageEvent(c.env, {
+  c.executionCtx.waitUntil(recordUsageEvent(c.env, {
     userId,
+    requestId: c.get("requestId"),
     eventType: "embedding",
     source: "web",
     model: embedder.id,
     inputTokens: estimateEmbeddingTokens(retrievalQuery),
     metadata: { source: "chat-query" },
-  }).catch(() => {});
+  }));
 
   const embeddingLiteral = toVectorLiteral(queryEmbedding);
 
@@ -326,8 +329,9 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
   const KEEP_TOP = 6;
   const ranked = await rerank(c.env.AI, retrievalQuery, rerankInputs, KEEP_TOP);
 
-  recordUsageEvent(c.env, {
+  c.executionCtx.waitUntil(recordUsageEvent(c.env, {
     userId,
+    requestId: c.get("requestId"),
     eventType: "rerank",
     source: "web",
     model: DEFAULT_MODELS.reranker,
@@ -335,7 +339,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
       candidates: rerankInputs.length,
       kept: ranked.length,
     },
-  }).catch(() => {});
+  }));
 
   // ── Group ranked results by item, preserving rerank order ────────────────
   type GroupedItem = {
@@ -392,8 +396,9 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
     messages: [{ role: "user", content: userMessage }],
     maxOutputTokens: 2048,
     onFinish({ usage }) {
-      recordUsageEvent(c.env, {
+      c.executionCtx.waitUntil(recordUsageEvent(c.env, {
         userId,
+        requestId: c.get("requestId"),
         eventType: "chat",
         source: "web",
         model: models.synthesis,
@@ -407,10 +412,15 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
           rerankKept: ranked.length,
           finalItemCount: groupedByItem.size,
         },
-      }).catch(() => {});
+      }));
     },
     onError({ error }) {
-      console.error("[chat streamText]", error);
+      log.error({ event: "chat.stream.failed",
+        requestId: c.get("requestId"),
+        threadId,
+        model: models.synthesis,
+        error,
+      });
     },
   });
 
@@ -456,7 +466,12 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
             .set({ updatedAt: sql`now()` })
             .where(eq(schema.chatThreads.id, threadId));
         } catch (err) {
-          console.error("[chat persist]", err);
+          log.error({ event: "chat.persist.failed",
+            requestId: c.get("requestId"),
+            threadId,
+            model: models.synthesis,
+            error: err,
+          });
         }
       },
       async execute({ writer }) {
@@ -521,7 +536,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
 
         // ── Post-stream: follow-ups and (first-turn) thread title.
         // These need the LLM's final text, which `result.text` resolves
-        // after the stream completes. Errors are swallowed — UI degrades
+        // after the stream completes. Failures are logged — UI degrades
         // gracefully without these.
         try {
           const finalText = await result.text;
@@ -541,13 +556,14 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
 
           if (followups.length > 0) {
             writer.write({ type: "data-followups", data: { questions: followups } });
-            recordUsageEvent(c.env, {
+            c.executionCtx.waitUntil(recordUsageEvent(c.env, {
               userId,
+              requestId: c.get("requestId"),
               eventType: "followups",
               source: "web",
               model: models.auxiliary,
               metadata: { count: followups.length },
-            }).catch(() => {});
+            }));
           }
 
           // First-turn title: replace the prefix-truncated `deriveTitle`
@@ -565,17 +581,23 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
                 .set({ title, updatedAt: sql`now()` })
                 .where(eq(schema.chatThreads.id, threadId));
               writer.write({ type: "data-title", data: { title } });
-              recordUsageEvent(c.env, {
+              c.executionCtx.waitUntil(recordUsageEvent(c.env, {
                 userId,
+                requestId: c.get("requestId"),
                 eventType: "title",
                 source: "web",
                 model: models.auxiliary,
                 metadata: { threadId },
-              }).catch(() => {});
+              }));
             }
           }
         } catch (err) {
-          console.error("[chat post-stream]", err);
+          log.error({ event: "chat.post_stream.failed",
+            requestId: c.get("requestId"),
+            threadId,
+            model: models.auxiliary,
+            error: err,
+          });
         }
       },
     }),

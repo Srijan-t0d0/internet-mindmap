@@ -6,6 +6,7 @@ import { zValidator } from "@hono/zod-validator";
 import type { Env, Variables } from "../bindings";
 import { getDb } from "../db/client";
 import { recordUsageEvent } from "../lib/usage";
+import { enqueueItem } from "../lib/enqueue";
 import * as schema from "../db/schema";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>()
@@ -77,18 +78,18 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
         });
       }
 
-      // Record save event (fire-and-forget)
-      recordUsageEvent(c.env, {
+      // Track the best-effort usage write for the request lifetime.
+      c.executionCtx.waitUntil(recordUsageEvent(c.env, {
         userId,
+        requestId: c.get("requestId"),
         eventType: "save",
         source: "extension",
         metadata: { itemId, url, isUpdate: !!existing },
-      }).catch(() => {});
+      }));
 
       // Trigger workflow (use unique instance ID to avoid conflict with prior runs)
-      await c.env.PROCESS_ITEM.create({
-        id: `${itemId}-${Date.now()}`,
-        params: { itemId, url, source_type, userId },
+      await enqueueItem(c.env, `${itemId}-${Date.now()}`, {
+        itemId, url, source_type, userId, requestId: c.get("requestId"),
       });
 
       return c.json(

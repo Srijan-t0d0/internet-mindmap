@@ -1,6 +1,7 @@
 import { generateText } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
 import { DEFAULT_MODELS } from "../ai/llm/models";
+import { log } from "evlog";
 
 /**
  * Generate a short (4-6 word) thread title from the first user question
@@ -36,9 +37,13 @@ export async function generateThreadTitle(
       .replace(/^["']|["']$/g, "")
       .replace(/\.$/, "")
       .trim();
-    if (cleaned.length === 0 || cleaned.length > 80) return null;
+    if (cleaned.length === 0 || cleaned.length > 80) {
+      log.warn({ event: "ai.title.invalid_output", model, reason: cleaned.length === 0 ? "empty" : "too_long" });
+      return null;
+    }
     return cleaned;
-  } catch {
+  } catch (error) {
+    log.warn({ event: "ai.title.failed", model, error });
     return null;
   }
 }

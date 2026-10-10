@@ -5,6 +5,7 @@ import { zValidator } from "@hono/zod-validator";
 import type { SourceType } from "@internet-mindmap/shared";
 import type { Env, Variables } from "../bindings";
 import { getDb } from "../db/client";
+import { enqueueItem } from "../lib/enqueue";
 import * as schema from "../db/schema";
 
 const sourceTypes = ["youtube", "reddit", "twitter", "github", "hackernews", "substack", "blog", "other"] as const;
@@ -267,9 +268,8 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
       .where(eq(schema.items.id, id));
 
     const workflowId = `${id}-${force ? "reprocess" : "retry"}-${Date.now()}`;
-    await c.env.PROCESS_ITEM.create({
-      id: workflowId,
-      params: { itemId: id, url: item.url, source_type: item.sourceType, userId },
+    await enqueueItem(c.env, workflowId, {
+      itemId: id, url: item.url, source_type: item.sourceType, userId, requestId: c.get("requestId"),
     });
     return c.json(
       { id, status: "pending", message: force ? "Reprocess enqueued" : "Retry enqueued" },

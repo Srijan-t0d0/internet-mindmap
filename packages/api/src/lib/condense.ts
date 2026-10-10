@@ -1,6 +1,7 @@
 import { generateText } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
 import { DEFAULT_MODELS } from "../ai/llm/models";
+import { log } from "evlog";
 
 /**
  * Condense a multi-turn chat into a standalone search query.
@@ -69,8 +70,10 @@ export async function condenseQuery(
       .replace(/^["']|["']$/g, "")
       .replace(/^Rewritten[^:]*:\s*/i, "")
       .trim();
+    if (!cleaned) log.warn({ event: "ai.condense.invalid_output", model, reason: "empty" });
     return cleaned.length > 0 ? cleaned : latestUserMessage;
-  } catch {
+  } catch (error) {
+    log.warn({ event: "ai.condense.failed", model, error });
     // Non-fatal — fall back to the raw message rather than failing the chat.
     return latestUserMessage;
   }

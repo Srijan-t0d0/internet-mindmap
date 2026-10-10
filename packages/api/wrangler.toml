@@ -29,6 +29,12 @@ binding = "AI"
 enabled = true
 head_sampling_rate = 1
 
+[observability.logs]
+enabled = true
+invocation_logs = true
+head_sampling_rate = 1
+persist = true
+
 [[workflows]]
 binding = "PROCESS_ITEM"
 name = "process-item"

@@ -1,4 +1,5 @@
 import type { Auth } from "./lib/auth";
+import type { EvlogVariables } from "evlog/hono";
 
 export interface Env {
   DATABASE_URL: string;
@@ -26,7 +27,10 @@ export interface Env {
   LLM_TAGGING?: string;
 }
 
-export interface Variables {
+type LogVariables = EvlogVariables["Variables"];
+
+export interface Variables extends LogVariables {
+  requestId: string;
   userId: string;
   auth: Auth; // Better Auth instance, created once per request
 }

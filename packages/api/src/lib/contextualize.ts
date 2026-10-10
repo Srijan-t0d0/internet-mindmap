@@ -1,6 +1,7 @@
 import { generateText } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
 import { DEFAULT_MODELS } from "../ai/llm/models";
+import { log } from "evlog";
 
 /**
  * Anthropic-style "contextual retrieval": for each chunk of a document,
@@ -86,9 +87,11 @@ export async function contextualizeChunks({
       const parsed = parsePrefixArray(text, batch.length);
       const matched = parsed.filter((p) => p && p.length > 0).length;
       if (matched === 0) {
-        console.warn(
-          `[contextualize] parse yielded 0 prefixes for batch of ${batch.length}. raw_output=${JSON.stringify(text).slice(0, 400)}`
-        );
+        log.warn({ event: "ai.contextualize.empty",
+          model,
+          batchStart: start,
+          batchSize: batch.length,
+        });
       }
       for (let i = 0; i < batch.length; i++) {
         prefixes[start + i] = parsed[i] ?? "";
@@ -97,9 +100,12 @@ export async function contextualizeChunks({
       // Non-fatal — leave the prefixes empty for this batch and move on.
       // Embedding still works on the raw chunk; retrieval just won't get
       // the context lift for these chunks.
-      console.warn(
-        `[contextualize] batch ${start}/${chunks.length} failed: ${err instanceof Error ? err.message : String(err)}`
-      );
+      log.warn({ event: "ai.contextualize.failed",
+        model,
+        batchStart: start,
+        batchSize: batch.length,
+        error: err,
+      });
     }
   }
 

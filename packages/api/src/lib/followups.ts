@@ -1,6 +1,7 @@
 import { generateText } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
 import { DEFAULT_MODELS } from "../ai/llm/models";
+import { log } from "evlog";
 
 /**
  * Generate 3 follow-up question suggestions grounded in the just-streamed
@@ -71,12 +72,18 @@ export async function generateFollowups(
       }
     })();
 
-    if (!Array.isArray(parsed)) return [];
-    return parsed
+    if (!Array.isArray(parsed)) {
+      log.warn({ event: "ai.followups.invalid_output", model, reason: "not_an_array" });
+      return [];
+    }
+    const followups = parsed
       .filter((s): s is string => typeof s === "string" && s.trim().length > 0)
       .map((s) => s.trim())
       .slice(0, 3);
-  } catch {
+    if (followups.length === 0) log.warn({ event: "ai.followups.invalid_output", model, reason: "empty" });
+    return followups;
+  } catch (error) {
+    log.warn({ event: "ai.followups.failed", model, error });
     return [];
   }
 }
