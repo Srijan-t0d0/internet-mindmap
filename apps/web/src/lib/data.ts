@@ -46,6 +46,7 @@ export const getItems = cache(async (params: {
   tag?: string | null;
   is_read?: string | null;
   limit?: number;
+  offset?: number;
 }) => {
   const client = await getClient();
   const res = await client.api.items.$get({
@@ -54,6 +55,7 @@ export const getItems = cache(async (params: {
       tag: params.tag ?? undefined,
       is_read: params.is_read ?? undefined,
       limit: params.limit?.toString(),
+      offset: params.offset?.toString(),
     },
   });
   if (!res.ok) {

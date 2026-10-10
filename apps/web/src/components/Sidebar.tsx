@@ -73,15 +73,15 @@ export default function Sidebar({ tags, itemCount }: SidebarProps) {
   const isExplore = !isChat;
 
   function handleViewModeChange(mode: ViewMode) {
-    setFilters({ view: mode, q: null });
+    setFilters({ view: mode, q: null, page: 1 });
   }
 
   function handleSourceTypeChange(source: string | null) {
-    setFilters({ source });
+    setFilters({ source, page: 1 });
   }
 
   function handleTagChange(tag: string | null) {
-    setFilters({ tag });
+    setFilters({ tag, page: 1 });
   }
 
   return (

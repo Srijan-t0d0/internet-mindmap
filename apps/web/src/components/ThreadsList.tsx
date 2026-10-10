@@ -1,22 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-
-type ThreadRow = {
-  id: string;
-  title: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-const THREAD_ID_KEY = "im.currentThreadId";
-
-function getHeaders(): Record<string, string> {
-  const h: Record<string, string> = {};
-  const token = process.env.NEXT_PUBLIC_API_TOKEN;
-  if (token) h["Authorization"] = `Bearer ${token}`;
-  return h;
-}
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { threadsQueryOptions, THREAD_ID_KEY, subscribeToThreadChanges } from "../lib/threads";
 
 function fmtRelative(iso: string): string {
   const then = new Date(iso).getTime();
@@ -33,47 +19,22 @@ function fmtRelative(iso: string): string {
 }
 
 export default function ThreadsList() {
-  const [threads, setThreads] = useState<ThreadRow[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
-
-  const refetch = useCallback(async () => {
-    try {
-      const res = await fetch("/api/threads", {
-        credentials: "include",
-        headers: getHeaders(),
-      });
-      if (!res.ok) return;
-      const data = (await res.json()) as { threads?: ThreadRow[] };
-      setThreads(data.threads ?? []);
-    } catch {
-      // ignore — list just stays empty
-    }
-  }, []);
+  const queryClient = useQueryClient();
+  const { data: threads = [], isPending, error, refetch } = useQuery(threadsQueryOptions);
 
   useEffect(() => {
-    refetch();
-    const stored =
-      typeof window !== "undefined"
-        ? window.localStorage.getItem(THREAD_ID_KEY)
-        : null;
-    setActiveId(stored);
-
-    const onChange = () => {
-      refetch();
-      const id =
-        typeof window !== "undefined"
-          ? window.localStorage.getItem(THREAD_ID_KEY)
-          : null;
-      setActiveId(id);
-    };
-    window.addEventListener("chat:threads-changed", onChange);
-    window.addEventListener("storage", (e) => {
-      if (e.key === THREAD_ID_KEY) setActiveId(e.newValue);
-    });
-    return () => {
-      window.removeEventListener("chat:threads-changed", onChange);
-    };
-  }, [refetch]);
+    setActiveId(window.localStorage.getItem(THREAD_ID_KEY));
+    return subscribeToThreadChanges(
+      () => {
+        void queryClient.invalidateQueries({ queryKey: threadsQueryOptions.queryKey });
+        setActiveId(window.localStorage.getItem(THREAD_ID_KEY));
+      },
+      (event) => {
+        if (event.key === THREAD_ID_KEY) setActiveId(event.newValue);
+      },
+    );
+  }, [queryClient]);
 
   function handleClick(id: string) {
     setActiveId(id);
@@ -83,6 +44,12 @@ export default function ThreadsList() {
     );
   }
 
+  if (isPending) return <p role="status" className="text-xs px-3">Loading threads…</p>;
+  if (error) return (
+    <div role="alert" className="text-xs px-3">
+      Couldn't load threads. <button type="button" onClick={() => void refetch()} className="underline">Try again</button>
+    </div>
+  );
   if (threads.length === 0) return null;
 
   return (

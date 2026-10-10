@@ -81,11 +81,11 @@ export function useDeleteItem() {
       const snapshot = qc.getQueriesData<ItemsData>({ queryKey: ["items"] });
 
       qc.setQueriesData<ItemsData>({ queryKey: ["items"] }, (old) => {
-        if (!old?.items) return old;
+        if (!old?.items.some((item) => item.id === id)) return old;
         return {
           ...old,
           items: old.items.filter((i) => i.id !== id),
-          total: old.total - 1,
+          total: Math.max(0, old.total - 1),
         };
       });
 

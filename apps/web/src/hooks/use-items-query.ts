@@ -1,69 +1,76 @@
 "use client";
 
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useQuery, queryOptions } from "@tanstack/react-query";
 import { fetchItems, searchItems } from "../lib/api";
-import type { Item } from "@internet-mindmap/shared";
+import {
+  ITEMS_PAGE_SIZE,
+  itemsQueryKey,
+  matchesInitialItems,
+  type ItemQueryParams,
+  type ItemsData,
+  type InitialItems,
+} from "../lib/item-query";
 
-export interface ItemsData {
-  items: Item[];
-  total: number;
-}
+export type { ItemsData } from "../lib/item-query";
 
-interface UseItemsQueryOptions {
-  /** Only used for search mode — tag/source filtering for search stays server-side */
-  source: string | null;
-  tag: string | null;
-  q: string | null;
-  initialData?: ItemsData;
-}
+export function getItemsQueryOptions(params: ItemQueryParams, initial?: InitialItems) {
+  const matches = matchesInitialItems(params, initial);
+  // The server sends just one page, even for graph mode. Only seed a graph
+  // cache when that page is the entire collection; otherwise finish on demand.
+  const canSeed = matches && (!params.graph || !!params.q || initial!.data.items.length >= initial!.data.total);
 
-/**
- * React Query hook for items — handles both list and search modes.
- *
- * List mode: fetches ALL items once (limit 500). Tag, source, and read-status
- * filtering is done client-side in ItemsShell via useMemo. This avoids a
- * Vercel→CF Worker round-trip on every filter change and fixes the initialData
- * masking bug where unfiltered SSR data showed for new query keys.
- *
- * Search mode: server-side vector search + optional tag/source filtering.
- */
-export function useItemsQuery({
-  source,
-  tag,
-  q,
-  initialData,
-}: UseItemsQueryOptions) {
-  const isSearching = Boolean(q);
-
-  return useQuery<ItemsData>({
-    queryKey: isSearching
-      ? ["items", "search", { q, source_type: source, tag }]
-      : ["items", "list"],
-    queryFn: async () => {
-      if (isSearching) {
+  return queryOptions<ItemsData>({
+    queryKey: itemsQueryKey(params),
+    queryFn: async ({ signal, client, queryKey }) => {
+      if (params.q) {
         const data = await searchItems({
-          q: q!,
-          source_type: source,
-          tag,
-        });
+          q: params.q,
+          source_type: params.source,
+          tag: params.tag,
+        }, signal);
         return { items: data.items, total: data.count };
       }
-      const data = await fetchItems({ limit: 500 });
-      return { items: data.items, total: data.total };
-    },
-    initialData: isSearching ? undefined : initialData,
-    initialDataUpdatedAt: !isSearching && initialData ? Date.now() : undefined,
-    placeholderData: keepPreviousData,
-    refetchInterval: (query) => {
-      const items = query.state.data?.items;
-      if (
-        items?.some(
-          (i) => i.status === "pending" || i.status === "processing",
-        )
-      ) {
-        return 5000;
+
+      const filters = {
+        source_type: params.source,
+        tag: params.tag,
+        is_read: params.isRead ? "false" : undefined,
+      };
+      if (!params.graph) {
+        const data = await fetchItems({
+          ...filters,
+          limit: ITEMS_PAGE_SIZE,
+          offset: (params.page - 1) * ITEMS_PAGE_SIZE,
+        }, signal);
+        return { items: data.items, total: data.total };
       }
-      return false;
+
+      // ponytail: graph ranking needs all items; add a lightweight graph endpoint if library payloads become costly.
+      // Reuse the SSR first page once. Later refetches must start fresh.
+      const canReuseFirstPage = matches && initial && !client.getQueryData(queryKey)
+        && !client.getQueryState(queryKey)?.isInvalidated && Date.now() - initial.updatedAt < 60_000;
+      let page = canReuseFirstPage
+        ? initial!.data
+        : await fetchItems({ ...filters, limit: 500 }, signal);
+      const items = [...page.items];
+      let total = page.total;
+      while (items.length < total && page.items.length > 0) {
+        page = await fetchItems({ ...filters, limit: 500, offset: items.length }, signal);
+        items.push(...page.items);
+        total = page.total;
+      }
+      return { items, total };
     },
+    initialData: canSeed ? initial!.data : undefined,
+    initialDataUpdatedAt: canSeed ? initial!.updatedAt : undefined,
+    staleTime: 60_000,
+    refetchInterval: (query) =>
+      query.state.data?.items.some((item) => item.status === "pending" || item.status === "processing")
+        ? 5000
+        : false,
   });
+}
+
+export function useItemsQuery(params: ItemQueryParams, initial?: InitialItems) {
+  return useQuery(getItemsQueryOptions(params, initial));
 }

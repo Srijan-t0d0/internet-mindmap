@@ -10,7 +10,7 @@ export async function fetchItems(params: {
   status?: string | null;
   limit?: number;
   offset?: number;
-}) {
+}, signal?: AbortSignal) {
   // Cast string → union at the RPC boundary. URL params are untyped strings;
   // the API's zod validator rejects invalid values at runtime.
   const res = await api.api.items.$get({
@@ -22,7 +22,7 @@ export async function fetchItems(params: {
       limit: params.limit?.toString(),
       offset: params.offset?.toString(),
     },
-  });
+  }, { init: { signal } });
   if (!res.ok) throw new Error("Failed to fetch items");
   return res.json();
 }
@@ -31,14 +31,14 @@ export async function searchItems(params: {
   q: string;
   source_type?: string | null;
   tag?: string | null;
-}) {
+}, signal?: AbortSignal) {
   const res = await api.api.search.$get({
     query: {
       q: params.q,
       source_type: (params.source_type ?? undefined) as SourceType | undefined,
       tag: params.tag ?? undefined,
     },
-  });
+  }, { init: { signal } });
   if (!res.ok) throw new Error("Search failed");
   return res.json();
 }

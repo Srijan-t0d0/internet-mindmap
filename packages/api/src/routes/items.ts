@@ -63,7 +63,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
         .select()
         .from(schema.items)
         .where(where)
-        .orderBy(desc(schema.items.createdAt))
+        .orderBy(desc(schema.items.createdAt), desc(schema.items.id))
         .limit(limit)
         .offset(offset);
 

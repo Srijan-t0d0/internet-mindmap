@@ -1,6 +1,6 @@
 "use client";
 
-import { useQueryStates, parseAsString, parseAsStringLiteral } from "nuqs";
+import { useQueryStates, parseAsString, parseAsStringLiteral, parseAsInteger } from "nuqs";
 import type { ViewMode } from "@internet-mindmap/shared";
 
 const viewModes = ["cards", "list", "reading-list", "graph"] as const;
@@ -10,6 +10,7 @@ export const filterParsers = {
   source: parseAsString,
   tag: parseAsString,
   q: parseAsString,
+  page: parseAsInteger.withDefault(1),
 };
 
 /**
