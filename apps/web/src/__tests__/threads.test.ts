@@ -9,22 +9,17 @@ afterEach(() => {
 });
 
 describe("thread list lifecycle", () => {
-  it("cleans up both event listeners on every unmount", () => {
+  it("cleans up the event listener on every unmount", () => {
     const target = new EventTarget();
     vi.stubGlobal("window", target);
     const onChange = vi.fn();
-    const onStorage = vi.fn();
     for (let mount = 0; mount < 3; mount++) {
-      const cleanup = subscribeToThreadChanges(onChange, onStorage);
+      const cleanup = subscribeToThreadChanges(onChange);
       target.dispatchEvent(new Event("chat:threads-changed"));
-      target.dispatchEvent(new Event("storage"));
       expect(onChange).toHaveBeenCalledTimes(mount + 1);
-      expect(onStorage).toHaveBeenCalledTimes(mount + 1);
       cleanup();
       target.dispatchEvent(new Event("chat:threads-changed"));
-      target.dispatchEvent(new Event("storage"));
       expect(onChange).toHaveBeenCalledTimes(mount + 1);
-      expect(onStorage).toHaveBeenCalledTimes(mount + 1);
     }
   });
 

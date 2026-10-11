@@ -43,7 +43,7 @@ const ChatComposer = memo(function ChatComposer({ canSend, isStreaming, sendText
         if (!canSend || !input.trim()) return;
         sendText(input);
         setInput("");
-      }} className="max-w-2xl mx-auto flex gap-2.5">
+      }} className="max-w-2xl mx-auto flex items-center gap-1.5 rounded-2xl border border-[var(--color-border)] bg-[var(--color-bg-card)] py-1.5 pl-4 pr-1.5 transition-all duration-150 focus-within:border-[var(--color-accent)] focus-within:shadow-[var(--shadow-search-focus)]">
         <input
           ref={inputRef}
           type="text"
@@ -52,24 +52,15 @@ const ChatComposer = memo(function ChatComposer({ canSend, isStreaming, sendText
           onChange={(e) => setInput(e.target.value)}
           placeholder="Ask a question..."
           disabled={!canSend}
-          className="flex-1 text-[15px] px-4 py-3 rounded-xl border transition-all duration-150 focus:outline-none"
-          style={{ borderColor: "var(--color-border)", backgroundColor: "var(--color-bg-card)" }}
-          onFocus={(e) => {
-            e.currentTarget.style.borderColor = "var(--color-accent)";
-            e.currentTarget.style.boxShadow = "var(--shadow-search-focus)";
-          }}
-          onBlur={(e) => {
-            e.currentTarget.style.borderColor = "var(--color-border)";
-            e.currentTarget.style.boxShadow = "none";
-          }}
+          className="flex-1 min-w-0 bg-transparent text-[15px] py-1.5 focus:outline-none"
         />
+        <ModelPicker inline value={model} onChange={setModel} settings={settings} disabled={isStreaming} />
         {isStreaming ? (
-          <button type="button" onClick={stop} className="px-5 py-3 rounded-xl text-[15px] font-medium text-white transition-all duration-150 hover:scale-[0.98] active:scale-[0.96]" style={{ backgroundColor: "var(--color-error)" }}>Stop</button>
+          <button type="button" onClick={stop} className="px-4 py-2 rounded-xl text-[14px] font-medium text-white transition-all duration-150 hover:scale-[0.98] active:scale-[0.96]" style={{ backgroundColor: "var(--color-error)" }}>Stop</button>
         ) : (
-          <button type="submit" disabled={!canSend || !input.trim()} className="px-5 py-3 rounded-xl text-[15px] font-medium text-white transition-all duration-150 hover:scale-[0.98] active:scale-[0.96] disabled:opacity-40 disabled:pointer-events-none" style={{ backgroundColor: "var(--color-accent)" }}>Send</button>
+          <button type="submit" disabled={!canSend || !input.trim()} className="px-4 py-2 rounded-xl text-[14px] font-medium text-white transition-all duration-150 hover:scale-[0.98] active:scale-[0.96] disabled:opacity-40 disabled:pointer-events-none" style={{ backgroundColor: "var(--color-accent)" }}>Send</button>
         )}
       </form>
-      <div className="max-w-2xl mx-auto mt-2"><ModelPicker value={model} onChange={setModel} settings={settings} disabled={isStreaming} /></div>
       <p className="text-[11px] text-center mt-2" style={{ color: "var(--color-text-muted)", opacity: 0.6 }}>Answers are grounded in your knowledge base</p>
     </div>
   );
@@ -142,8 +133,7 @@ export default function ChatView() {
           )}
           {messages.length > 0 && (
             <div className="space-y-5 pb-4">
-              <div className="flex items-center justify-between mb-2">
-                <div />
+              <div className="flex items-center mb-2">
                 <button onClick={handleClear} className="text-[12px] font-medium px-2.5 py-1 rounded-md transition-colors duration-150"
                   style={{ color: confirmClear ? "var(--color-error)" : "var(--color-text-muted)", backgroundColor: confirmClear ? "rgba(217, 79, 79, 0.08)" : "transparent" }}
                   onMouseEnter={(e) => {

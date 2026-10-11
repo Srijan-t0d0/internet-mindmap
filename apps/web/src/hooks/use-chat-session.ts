@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback, useSyncExternalStore } from "
 import { useChat } from "@ai-sdk/react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { UIMessage, SourceUrlUIPart } from "ai";
-import { THREAD_ID_KEY } from "../lib/threads";
+import { useSearchParams } from "next/navigation";
 import { createChatSession, getChatSession, useChatSessions } from "../lib/chat-sessions";
 export { getProgressStage, loadThreadMessages, threadMessagesQueryOptions, type ChatStage } from "../lib/chat-sessions";
 
@@ -61,16 +61,14 @@ function newThreadId(): string {
     : `t-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-// Storage can be unavailable (e.g. privacy settings); the in-memory session still works.
-function rememberThread(id: string) {
-  try { window.localStorage.setItem(THREAD_ID_KEY, id); } catch { /* optional persistence */ }
-}
-
 export function useChatSession() {
   const queryClient = useQueryClient();
   const sessions = useChatSessions();
+  // `/chat?t=<id>` is a saved thread; bare `/chat` is a fresh draft that gets its URL on first send.
+  const urlThreadId = useSearchParams().get("t");
   const [pendingSession] = useState(() => createChatSession("pending-history", queryClient));
-  const [threadId, setThreadId] = useState<string | null>(null);
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const threadId = urlThreadId ?? draftId;
   const [model, setModel] = useState("");
   const [confirmClear, setConfirmClear] = useState(false);
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -80,35 +78,37 @@ export function useChatSession() {
   const isStreaming = status === "streaming" || status === "submitted";
   const canSend = hydrated && !historyError && !isStreaming;
 
+  const startNewThread = useCallback(() => {
+    const id = newThreadId();
+    getChatSession(sessions, id, queryClient, true);
+    setDraftId(id);
+    if (urlThreadId) window.history.pushState(null, "", "/chat");
+  }, [sessions, queryClient, urlThreadId]);
+
   useEffect(() => {
-    let stored: string | null = null;
-    try { stored = window.localStorage.getItem(THREAD_ID_KEY); } catch { /* optional persistence */ }
-    const id = stored ?? newThreadId();
-    getChatSession(sessions, id, queryClient, !stored);
-    rememberThread(id);
-    setThreadId(id);
-  }, [sessions, queryClient]);
+    if (!urlThreadId && !draftId) startNewThread();
+  }, [urlThreadId, draftId, startNewThread]);
 
   useEffect(() => {
     if (threadId) void session.load();
   }, [threadId, session]);
 
-  const switchThread = useCallback((id: string) => {
-    if (id === threadId) return;
-    session.stop();
+  // Leaving a thread (sidebar link, back button, new chat) stops its stream.
+  const prevSessionRef = useRef(session);
+  useEffect(() => {
+    if (prevSessionRef.current === session) return;
+    prevSessionRef.current.stop();
+    prevSessionRef.current = session;
     setConfirmClear(false);
     if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
-    rememberThread(id);
-    setThreadId(id);
-  }, [session, threadId]);
+  }, [session]);
 
-  const startNewThread = useCallback(() => {
-    const id = newThreadId();
-    getChatSession(sessions, id, queryClient, true);
-    switchThread(id);
-  }, [sessions, queryClient, switchThread]);
   const retryHistory = useCallback(() => { void session.load(); }, [session]);
-  const sendText = useCallback((text: string) => { void session.sendText(text, model || undefined); }, [session, model]);
+  const sendText = useCallback((text: string) => {
+    // Native pushState keeps this component (and the in-flight stream) mounted; Next syncs useSearchParams.
+    if (!urlThreadId && threadId) window.history.pushState(null, "", `/chat?t=${threadId}`);
+    void session.sendText(text, model || undefined);
+  }, [session, model, urlThreadId, threadId]);
   const stop = useCallback(() => session.stop(), [session]);
 
   const handleClear = useCallback(() => {
@@ -120,21 +120,12 @@ export function useChatSession() {
     }
   }, [confirmClear, startNewThread]);
 
-  useEffect(() => {
-    function handler(e: Event) {
-      const detail = (e as CustomEvent<{ id: string }>).detail;
-      if (typeof detail?.id === "string" && detail.id) switchThread(detail.id);
-    }
-    window.addEventListener("chat:switch-thread", handler);
-    return () => window.removeEventListener("chat:switch-thread", handler);
-  }, [switchThread]);
-
   useEffect(() => () => {
     if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
   }, []);
 
   return {
     threadId, hydrated, historyError, retryHistory, messages, isStreaming, canSend,
-    model, setModel, progress, error, clearError, stop, confirmClear, handleClear, sendText, startNewThread, switchThread,
+    model, setModel, progress, error, clearError, stop, confirmClear, handleClear, sendText, startNewThread,
   };
 }

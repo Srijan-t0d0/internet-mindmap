@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { threadsQueryOptions, THREAD_ID_KEY, subscribeToThreadChanges } from "../lib/threads";
+import { threadsQueryOptions, subscribeToThreadChanges } from "../lib/threads";
 
 function fmtRelative(iso: string): string {
   const then = new Date(iso).getTime();
@@ -19,30 +21,13 @@ function fmtRelative(iso: string): string {
 }
 
 export default function ThreadsList() {
-  const [activeId, setActiveId] = useState<string | null>(null);
+  const activeId = useSearchParams().get("t");
   const queryClient = useQueryClient();
   const { data: threads = [], isPending, error, refetch } = useQuery(threadsQueryOptions);
 
-  useEffect(() => {
-    setActiveId(window.localStorage.getItem(THREAD_ID_KEY));
-    return subscribeToThreadChanges(
-      () => {
-        void queryClient.invalidateQueries({ queryKey: threadsQueryOptions.queryKey });
-        setActiveId(window.localStorage.getItem(THREAD_ID_KEY));
-      },
-      (event) => {
-        if (event.key === THREAD_ID_KEY) setActiveId(event.newValue);
-      },
-    );
-  }, [queryClient]);
-
-  function handleClick(id: string) {
-    setActiveId(id);
-    window.localStorage.setItem(THREAD_ID_KEY, id);
-    window.dispatchEvent(
-      new CustomEvent("chat:switch-thread", { detail: { id } })
-    );
-  }
+  useEffect(() => subscribeToThreadChanges(() => {
+    void queryClient.invalidateQueries({ queryKey: threadsQueryOptions.queryKey });
+  }), [queryClient]);
 
   if (isPending) return <p role="status" className="text-xs px-3">Loading threads…</p>;
   if (error) return (
@@ -65,9 +50,10 @@ export default function ThreadsList() {
           const active = activeId === t.id;
           const title = t.title?.trim() || "Untitled";
           return (
-            <button
+            <Link
               key={t.id}
-              onClick={() => handleClick(t.id)}
+              href={`/chat?t=${encodeURIComponent(t.id)}`}
+              aria-current={active ? "page" : undefined}
               className="w-full text-left text-sm px-3 py-1.5 rounded-md transition-all duration-150 flex items-center gap-2"
               style={{
                 backgroundColor: active ? "var(--color-bg-card)" : "transparent",
@@ -84,7 +70,7 @@ export default function ThreadsList() {
               >
                 {fmtRelative(t.updated_at)}
               </span>
-            </button>
+            </Link>
           );
         })}
       </div>

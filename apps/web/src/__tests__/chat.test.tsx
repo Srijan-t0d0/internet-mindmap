@@ -12,6 +12,8 @@ import {
   loadThreadMessages, type ChatPassage,
 } from "../hooks/use-chat-session";
 
+vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }));
+
 const passage: ChatPassage = {
   chunkId: "article-c-12", itemId: "article", title: "Article", url: "https://example.com",
   quote: "A passage", rerankScore: 0.9,

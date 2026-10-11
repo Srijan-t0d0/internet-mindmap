@@ -1,7 +1,5 @@
 import { queryOptions } from "@tanstack/react-query";
 
-export const THREAD_ID_KEY = "im.currentThreadId";
-
 export interface ThreadRow {
   id: string;
   title: string | null;
@@ -25,11 +23,7 @@ export const threadsQueryOptions = queryOptions({
   },
 });
 
-export function subscribeToThreadChanges(onChange: () => void, onStorage: (event: StorageEvent) => void) {
+export function subscribeToThreadChanges(onChange: () => void) {
   window.addEventListener("chat:threads-changed", onChange);
-  window.addEventListener("storage", onStorage);
-  return () => {
-    window.removeEventListener("chat:threads-changed", onChange);
-    window.removeEventListener("storage", onStorage);
-  };
+  return () => window.removeEventListener("chat:threads-changed", onChange);
 }

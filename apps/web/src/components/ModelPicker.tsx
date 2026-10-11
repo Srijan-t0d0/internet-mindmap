@@ -14,8 +14,10 @@ function CompanyIcon({ company }: { company: string }) {
     : <Image src={`https://models.dev/logos/${encodeURIComponent(company)}.svg`} alt="" width={20} height={20} unoptimized onError={() => setFailed(true)} className="size-5 shrink-0" />;
 }
 
-export default function ModelPicker({ value, onChange, settings, disabled, id, label = "Chat model" }: {
+export default function ModelPicker({ value, onChange, settings, disabled, id, label = "Chat model", inline = false }: {
   value: string; onChange: (value: string) => void; settings?: Settings; disabled?: boolean; id?: string; label?: string;
+  /** Borderless, content-width trigger for embedding inside the chat composer. */
+  inline?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -31,10 +33,10 @@ export default function ModelPicker({ value, onChange, settings, disabled, id, l
   useEffect(() => { list.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" }); }, [active]);
   function choose(option: ModelOption) { onChange(option.id); setOpen(false); }
   return <Popover open={open} onOpenChange={(next) => { setOpen(next); setSearch(""); setActiveId(""); }}>
-    <PopoverTrigger asChild><button type="button" id={id} aria-label={label} disabled={disabled} className="flex w-full min-w-0 items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-card)] px-3 py-2 text-sm text-left focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] disabled:opacity-50">
+    <PopoverTrigger asChild><button type="button" id={id} aria-label={label} disabled={disabled} className={`flex min-w-0 items-center gap-2 text-sm text-left focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] disabled:opacity-50 ${inline ? "max-w-48 rounded-lg px-2 py-1.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]" : "w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-card)] px-3 py-2"}`}>
       <CompanyIcon key={selected?.company ?? "cloudflare"} company={selected?.company ?? "cloudflare"} /><span className="min-w-0 flex-1 truncate">{selected?.name ?? (value || "Use default model")}</span><ChevronDown size={16} aria-hidden="true" />
     </button></PopoverTrigger>
-    <PopoverContent align="start" className="w-[min(28rem,calc(100vw-2rem))] p-0 shadow-none border-[var(--color-border)] bg-[var(--color-bg-card)] text-[var(--color-text-primary)] animate-none" aria-label="Choose a chat model">
+    <PopoverContent align={inline ? "end" : "start"} className="w-[min(28rem,calc(100vw-2rem))] p-0 shadow-none border-[var(--color-border)] bg-[var(--color-bg-card)] text-[var(--color-text-primary)] animate-none" aria-label="Choose a chat model">
       <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-2"><Search size={16} aria-hidden="true" /><input role="combobox" aria-label="Search models" aria-autocomplete="list" aria-expanded="true" aria-controls={listId} aria-activedescendant={choices[active] ? `${listId}-${active}` : undefined} value={search} placeholder="Search models, companies, or provider:model…" className="min-w-0 flex-1 bg-transparent py-1 text-sm outline-none placeholder:text-[var(--color-text-secondary)]" onChange={(event) => { setSearch(event.target.value); setActiveId(""); }} onKeyDown={(event) => {
         if (["ArrowDown", "ArrowUp", "Home", "End", "Enter"].includes(event.key)) event.preventDefault();
         if (event.key === "ArrowDown") setActiveId(choices[Math.min(active + 1, choices.length - 1)]?.id ?? "");
