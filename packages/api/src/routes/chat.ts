@@ -169,7 +169,8 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
         const resolved = await getChatModel(c.env, userId, body.model);
         chatModelId = resolved.modelId;
         // One stable message id owns both the sources and the answer.
-        writer.write({ type: "start", messageId: generateId() });
+        // The thread remembers an explicit pick (request or Settings); unpinned threads follow the default.
+        writer.write({ type: "start", messageId: generateId(), messageMetadata: { model: resolved.selection } });
         writer.write({ type: "data-status", data: { stage: "searching" }, transient: true });
 
         // ── Multi-turn condense: rewrite the latest message into a standalone

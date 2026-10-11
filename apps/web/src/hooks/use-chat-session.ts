@@ -69,7 +69,7 @@ export function useChatSession() {
   const [pendingSession] = useState(() => createChatSession("pending-history", queryClient));
   const [draftId, setDraftId] = useState<string | null>(null);
   const threadId = urlThreadId ?? draftId;
-  const [model, setModel] = useState("");
+  const [picked, setPicked] = useState<{ threadId: string | null; model: string } | null>(null);
   const [confirmClear, setConfirmClear] = useState(false);
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const session = threadId ? getChatSession(sessions, threadId, queryClient) : pendingSession;
@@ -77,6 +77,10 @@ export function useChatSession() {
   const { messages, status, error, clearError } = useChat({ chat: session.chat });
   const isStreaming = status === "streaming" || status === "submitted";
   const canSend = hydrated && !historyError && !isStreaming;
+  // A fresh pick wins for this thread; otherwise restore the model its last answer used.
+  const threadModel = [...messages].reverse().map((m) => (m.metadata as { model?: unknown } | undefined)?.model).find((m) => m !== undefined);
+  const model = picked?.threadId === threadId ? picked.model : typeof threadModel === "string" ? threadModel : "";
+  const setModel = useCallback((next: string) => setPicked({ threadId, model: next }), [threadId]);
 
   const startNewThread = useCallback(() => {
     const id = newThreadId();

@@ -9,6 +9,15 @@ function textModalities(input: unknown, output: unknown) {
 function validId(id: string) {
   return id.length <= 200 && /^[a-z-]+:[\w@./-]+(?::[\w-]+)?$/.test(id);
 }
+/** OpenRouter quotes USD per token as strings; negative means variable (e.g. openrouter/auto). */
+export function formatPrice(pricing: unknown) {
+  const { prompt, completion } = record(pricing);
+  const [input, output] = [Number(prompt), Number(completion)];
+  if (typeof prompt !== "string" || typeof completion !== "string" || !(input >= 0) || !(output >= 0)) return undefined;
+  if (input === 0 && output === 0) return "Free";
+  const perMillion = (value: number) => `$${+(value * 1e6).toFixed(2)}`;
+  return `${perMillion(input)} / ${perMillion(output)} per 1M`;
+}
 export function parseModelCatalog(direct: unknown, openrouter: unknown): ModelOption[] {
   const models: ModelOption[] = [];
   const providers = record(direct);
@@ -26,7 +35,7 @@ export function parseModelCatalog(direct: unknown, openrouter: unknown): ModelOp
     const architecture = record(model.architecture);
     if (typeof model.id !== "string" || typeof model.name !== "string" || !validId(`openrouter:${model.id}`) || !textModalities(architecture.input_modalities, architecture.output_modalities)) continue;
     const company = model.id.split("/")[0];
-    models.push({ id: `openrouter:${model.id}`, name: model.name, company: company === "qwen" ? "alibaba" : company === "meta-llama" ? "meta" : company === "x-ai" ? "xai" : company, provider: "openrouter" });
+    models.push({ id: `openrouter:${model.id}`, name: model.name, company: company === "qwen" ? "alibaba" : company === "meta-llama" ? "meta" : company === "x-ai" ? "xai" : company, provider: "openrouter", price: formatPrice(model.pricing) });
   }
   return models.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 }

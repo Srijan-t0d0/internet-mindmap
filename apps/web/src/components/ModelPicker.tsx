@@ -29,12 +29,13 @@ export default function ModelPicker({ value, onChange, settings, disabled, id, l
   const defaultOption: ModelOption = { id: "", name: "Use default model", company: "cloudflare", provider: "workers-ai" };
   const choices = filterModels([defaultOption, ...options], search);
   const active = activeModelIndex(choices, activeId);
-  const selected = options.find((option) => option.id === value);
+  // Empty value means "use default", so show what the default actually resolves to.
+  const selected = options.find((option) => option.id === (value || settings?.chatModel));
   useEffect(() => { list.current?.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: "nearest" }); }, [active]);
   function choose(option: ModelOption) { onChange(option.id); setOpen(false); }
   return <Popover open={open} onOpenChange={(next) => { setOpen(next); setSearch(""); setActiveId(""); }}>
     <PopoverTrigger asChild><button type="button" id={id} aria-label={label} disabled={disabled} className={`flex min-w-0 items-center gap-2 text-sm text-left focus-visible:outline-2 focus-visible:outline-[var(--color-accent)] disabled:opacity-50 ${inline ? "max-w-48 rounded-lg px-2 py-1.5 text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-secondary)]" : "w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-card)] px-3 py-2"}`}>
-      <CompanyIcon key={selected?.company ?? "cloudflare"} company={selected?.company ?? "cloudflare"} /><span className="min-w-0 flex-1 truncate">{selected?.name ?? (value || "Use default model")}</span><ChevronDown size={16} aria-hidden="true" />
+      <CompanyIcon key={selected?.company ?? "cloudflare"} company={selected?.company ?? "cloudflare"} /><span className="min-w-0 flex-1 truncate">{selected?.name ?? (value || "Use default model")}</span>{!value && settings?.chatModel && <span className="shrink-0 text-xs text-[var(--color-text-secondary)]">default</span>}<ChevronDown size={16} aria-hidden="true" />
     </button></PopoverTrigger>
     <PopoverContent align={inline ? "end" : "start"} className="w-[min(28rem,calc(100vw-2rem))] p-0 shadow-none border-[var(--color-border)] bg-[var(--color-bg-card)] text-[var(--color-text-primary)] animate-none" aria-label="Choose a chat model">
       <div className="flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-2"><Search size={16} aria-hidden="true" /><input role="combobox" aria-label="Search models" aria-autocomplete="list" aria-expanded="true" aria-controls={listId} aria-activedescendant={choices[active] ? `${listId}-${active}` : undefined} value={search} placeholder="Search models, companies, or provider:model…" className="min-w-0 flex-1 bg-transparent py-1 text-sm outline-none placeholder:text-[var(--color-text-secondary)]" onChange={(event) => { setSearch(event.target.value); setActiveId(""); }} onKeyDown={(event) => {
@@ -47,7 +48,7 @@ export default function ModelPicker({ value, onChange, settings, disabled, id, l
       }} /></div>
       <div ref={list} id={listId} role="listbox" aria-label="Chat models" className="max-h-72 overflow-y-auto p-1">
         {choices.map((option, index) => <button type="button" role="option" tabIndex={-1} aria-selected={value === option.id} id={`${listId}-${index}`} data-index={index} key={option.id} onMouseMove={() => setActiveId(option.id)} onClick={() => choose(option)} className={`flex w-full items-center gap-3 rounded-md px-3 py-2 text-left ${index === active ? "bg-[var(--color-bg-secondary)]" : ""}`}>
-          <CompanyIcon company={option.company} /><span className="min-w-0 flex-1"><span className="block truncate text-sm">{option.name}</span><span className="block truncate text-xs text-[var(--color-text-secondary)]">{option.id || (settings?.chatModel ?? "Workers AI · included")}</span></span>{value === option.id && <Check size={16} aria-hidden="true" />}
+          <CompanyIcon company={option.company} /><span className="min-w-0 flex-1"><span className="block truncate text-sm">{option.name}</span><span className="block truncate text-xs text-[var(--color-text-secondary)]">{option.id || (settings?.chatModel ?? "Workers AI · included")}</span></span>{option.price && <span className="shrink-0 text-xs tabular-nums text-[var(--color-text-secondary)]">{option.price}</span>}{value === option.id && <Check size={16} aria-hidden="true" />}
         </button>)}
         {!choices.length && <p className="px-3 py-6 text-sm">No matching models.</p>}
       </div>

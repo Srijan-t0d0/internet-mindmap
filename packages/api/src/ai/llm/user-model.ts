@@ -34,7 +34,7 @@ export async function validateChatModel(env: Env, userId: string, model: unknown
   }
   return parsed;
 }
-export async function getChatModel(env: Env, userId: string, requested?: string): Promise<{ model: LanguageModel; modelId: string; systemPrompt: string | null }> {
+export async function getChatModel(env: Env, userId: string, requested?: string): Promise<{ model: LanguageModel; modelId: string; selection: string | null; systemPrompt: string | null }> {
   const [settings] = userId === "agent" ? [] : await getDb(env).select().from(userSettings).where(eq(userSettings.userId, userId));
   const chosen = requested ?? settings?.chatModel;
   const modelId = chosen ?? `workers-ai:${getModels(env).synthesis}`;
@@ -55,7 +55,7 @@ export async function getChatModel(env: Env, userId: string, requested?: string)
       case "openrouter": model = createOpenRouter({ apiKey })(parsed.id); break;
     }
   }
-  return { model, modelId, systemPrompt: settings?.systemPrompt ?? null };
+  return { model, modelId, selection: chosen ?? null, systemPrompt: settings?.systemPrompt ?? null };
 }
 export function chatProviderError(error: unknown, modelId: string) {
   const provider = modelId.split(":")[0];

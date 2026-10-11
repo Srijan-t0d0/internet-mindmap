@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { activeModelIndex, availableModelOptions, filterModels, type ModelOption } from "../lib/models";
 import SettingsView from "../components/SettingsView";
 import type { Settings } from "../lib/settings";
-import { parseModelCatalog } from "../lib/model-catalog";
+import { formatPrice, parseModelCatalog } from "../lib/model-catalog";
 
 const settings: Settings = { chatModel: "openai:gpt-4.1", systemPrompt: "Keep answers brief", credentials: [
   { provider: "openai", status: "ok", last4: "1234" }, { provider: "anthropic", status: "invalid", last4: "5678" },
@@ -16,6 +16,13 @@ const catalog: ModelOption[] = [
   { id: "openrouter:anthropic/claude-sonnet-4.5", name: "Claude Sonnet", company: "anthropic", provider: "openrouter" },
 ];
 describe("model picker", () => {
+  it("formats OpenRouter per-token prices per 1M tokens", () => {
+    expect(formatPrice({ prompt: "0.000003", completion: "0.000015" })).toBe("$3 / $15 per 1M");
+    expect(formatPrice({ prompt: "0.0000001", completion: "0.0000004" })).toBe("$0.1 / $0.4 per 1M");
+    expect(formatPrice({ prompt: "0", completion: "0" })).toBe("Free");
+    expect(formatPrice({ prompt: "-1", completion: "-1" })).toBeUndefined();
+    expect(formatPrice(undefined)).toBeUndefined();
+  });
   it("uses exact provider IDs, excludes non-chat models and preserves OpenRouter variants", () => {
     const text = { input: ["text", "image"], output: ["text"] };
     const direct = { openai: { models: { "gpt-4.1": { name: "GPT 4.1", modalities: text }, "text-embedding": { name: "Embedding", modalities: { input: ["text"], output: ["embedding"] } }, "bad:id": { name: "Bad", modalities: text } } }, "google-vertex": { models: { vertex: { name: "Vertex", modalities: text } } } };

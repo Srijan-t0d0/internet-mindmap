@@ -1,6 +1,6 @@
 import type { Provider, Settings } from "./settings";
 
-export type ModelOption = { id: string; name: string; company: string; provider: Provider | "workers-ai" };
+export type ModelOption = { id: string; name: string; company: string; provider: Provider | "workers-ai"; /** e.g. "$3 / $15 per 1M" (OpenRouter only). */ price?: string };
 export const WORKERS_MODELS: ModelOption[] = [
   { id: "workers-ai:@cf/qwen/qwen3.8-27b", name: "Qwen 3.8 27B", company: "alibaba", provider: "workers-ai" },
   { id: "workers-ai:@cf/qwen/qwen3-30b-a3b-fp8", name: "Qwen 3 30B A3B", company: "alibaba", provider: "workers-ai" },
