@@ -87,14 +87,14 @@ export function createChatSession(id: string, queryClient: QueryClient, options:
       }).finally(() => { loading = null; });
       return loading;
     },
-    async sendText(text: string) {
+    async sendText(text: string, model?: string) {
       if (!state.hydrated || state.historyError || sending || chat.status === "streaming" || chat.status === "submitted" || !text.trim()) return;
       sending = true;
       acceptingProgress = true;
       update({ progress: null });
       try {
         // Explicit parts skip async file conversion, so stop() can cancel immediately.
-        await chat.sendMessage({ parts: [{ type: "text", text: text.trim() }] });
+        await chat.sendMessage({ parts: [{ type: "text", text: text.trim() }] }, { body: model ? { model } : {} });
       } finally {
         sending = false;
         acceptingProgress = false;

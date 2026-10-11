@@ -7,7 +7,7 @@ import {
   generateId,
   type UIMessage,
 } from "ai";
-import { createChatModel } from "../ai/llm/chat-model";
+import { getChatModel, validateChatModel, chatProviderError, invalidateChatCredential } from "../ai/llm/user-model";
 import type { Env, Variables } from "../bindings";
 import { getDb } from "../db/client";
 import { buildEmbeddingRegistry } from "../ai/embeddings/registry";
@@ -76,6 +76,7 @@ type IncomingMsg = {
 const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async (c) => {
   const body = await c.req.json<{
     id?: string;
+    model?: string;
     messages?: IncomingMsg[];
   }>();
 
@@ -92,7 +93,8 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
 
   const userId = c.get("userId");
   const models = getModels(c.env);
-  const chatModel = createChatModel(c.env.AI, models.synthesis);
+  if (body.model !== undefined) await validateChatModel(c.env, userId, body.model);
+  let chatModelId = `workers-ai:${models.synthesis}`;
 
   // ── Thread id: client-supplied or server-generated ──────────────────────
   // `useChat({ id })` on the client propagates this as `body.id` via
@@ -121,23 +123,31 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
   if (!ownedThread) return c.json({ error: "Thread not found" }, 404);
 
   const onStreamError = (error: unknown) => {
+    // Provider exceptions contain keys/request bodies; log only bounded classification.
+    const mapped = chatProviderError(error, chatModelId);
     log.error({ event: "chat.execute.failed", requestId: c.get("requestId"), threadId,
-      model: models.synthesis, error });
-    return "Unable to answer right now. Please try again.";
+      model: chatModelId, reason: mapped ? "provider_rejected" : "operation_failed" });
+    if (mapped?.invalid) c.executionCtx.waitUntil(invalidateChatCredential(c.env, userId, chatModelId));
+    return mapped?.message ?? "Unable to answer right now. Please try again.";
   };
 
   // ── Self-RAG: skip retrieval for purely conversational messages ─────────────
   if (isConversational(question)) {
-    const result = streamText({
-      model: chatModel,
-      system: "You are a friendly assistant for a personal knowledge base app. Respond naturally to short conversational messages.",
-      messages: [{ role: "user", content: question }],
-      maxOutputTokens: 256,
-    });
     return createUIMessageStreamResponse({
       stream: createUIMessageStream({
         onError: onStreamError,
         async execute({ writer }) {
+          const resolved = await getChatModel(c.env, userId, body.model);
+          chatModelId = resolved.modelId;
+          const result = streamText({
+            model: resolved.model,
+            system: `You are a friendly assistant for a personal knowledge base app. Respond naturally to short conversational messages.${resolved.systemPrompt ? `\n\nUser preferences:\n${resolved.systemPrompt}` : ""}`,
+            messages: [{ role: "user", content: question }], maxOutputTokens: 256,
+            onFinish({ usage }) {
+              c.executionCtx.waitUntil(recordUsageEvent(c.env, { userId, requestId: c.get("requestId"), eventType: "chat", source: "web", model: chatModelId,
+                inputTokens: usage?.inputTokens ?? 0, outputTokens: usage?.outputTokens ?? 0 }));
+            },
+          });
           writer.merge(result.toUIMessageStream({ onError: onStreamError }));
         },
       }),
@@ -183,6 +193,8 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
         }
       },
       async execute({ writer }) {
+        const resolved = await getChatModel(c.env, userId, body.model);
+        chatModelId = resolved.modelId;
         // One stable message id owns both the sources and the answer.
         writer.write({ type: "start", messageId: generateId() });
         writer.write({ type: "data-status", data: { stage: "searching" }, transient: true });
@@ -438,12 +450,13 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
                 passages: group.passages,
               };
             })
-            .filter((x): x is NonNullable<typeof x> => x !== null)
+            .filter((x): x is NonNullable<typeof x> => x !== null),
+          resolved.systemPrompt
         );
 
         writer.write({ type: "data-status", data: { stage: "writing" }, transient: true });
         const result = streamText({
-          model: chatModel,
+          model: resolved.model,
           system,
           messages: [{ role: "user", content: userMessage }],
           maxOutputTokens: 2048,
@@ -453,7 +466,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
               requestId: c.get("requestId"),
               eventType: "chat",
               source: "web",
-              model: models.synthesis,
+              model: chatModelId,
               inputTokens: usage?.inputTokens ?? 0,
               outputTokens: usage?.outputTokens ?? 0,
               metadata: {
@@ -471,8 +484,8 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
               event: "chat.stream.failed",
               requestId: c.get("requestId"),
               threadId,
-              model: models.synthesis,
-              error,
+              model: chatModelId,
+              reason: "provider_stream_failed",
             });
           },
         });

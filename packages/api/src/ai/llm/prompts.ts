@@ -53,7 +53,8 @@ const CONTEXT_CHAR_BUDGET = 28000;
 
 export function buildChatMessages(
   question: string,
-  items: ChatContextItem[]
+  items: ChatContextItem[],
+  customPrompt?: string | null
 ): { system: string; userMessage: string } {
   let used = 0;
   const blocks: string[] = [];
@@ -96,7 +97,7 @@ Style:
 - Synthesise across sources when the answer spans them. Don't just paraphrase one passage.
 - Use markdown: **bold** for key points, bullet lists for enumerations, code blocks for code.
 - Be concise. Prefer 3 well-cited sentences to 8 hedged ones.
-- Items marked "related via shared topics" came in via tag overlap — treat as supporting, not primary.`,
+- Items marked "related via shared topics" came in via tag overlap — treat as supporting, not primary.${customPrompt ? `\n\nUser preferences (subject to the citation rules above):\n${customPrompt}` : ""}`,
     userMessage: `My saved knowledge base:\n\n${context}\n\nQuestion: ${question}`,
   };
 }

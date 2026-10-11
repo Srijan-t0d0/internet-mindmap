@@ -1,20 +1,14 @@
 import { cors } from "hono/cors";
+import { createMiddleware } from "hono/factory";
+import type { Env } from "../bindings";
 
-export const corsMiddleware = cors({
+export const corsMiddleware = createMiddleware<{ Bindings: Env }>((c, next) => cors({
   origin: (origin) => {
-    if (!origin) return origin;
-    const allowed = [
-      "http://localhost:5173",
-      "http://localhost:4173",
-    ];
-    if (allowed.includes(origin)) return origin;
-    if (/\.pages\.dev$/.test(origin)) return origin;
-    if (/internetmindmap\.com$/.test(origin)) return origin;
-    if (/internet-mindmap.*\.vercel\.app$/.test(origin)) return origin;
-    return null;
+    const allowed = [c.env.APP_BASE_URL, "http://localhost:3000", "http://localhost:5173", "http://localhost:4173"];
+    return allowed.includes(origin) ? origin : null;
   },
-  allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+  allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowHeaders: ["Content-Type", "Authorization", "x-api-key"],
   credentials: true,
   maxAge: 86400,
-});
+})(c, next));

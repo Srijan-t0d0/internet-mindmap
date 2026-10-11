@@ -197,6 +197,8 @@ export default function UserMenu() {
           )}
         </div>
 
+        <a href="/settings" className="block px-3 py-2.5 text-xs hover:bg-[var(--color-bg)]">AI settings</a>
+
         {/* Sign out */}
         <button
           onClick={handleSignOut}

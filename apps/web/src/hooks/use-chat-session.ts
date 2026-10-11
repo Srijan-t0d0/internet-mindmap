@@ -71,6 +71,7 @@ export function useChatSession() {
   const sessions = useChatSessions();
   const [pendingSession] = useState(() => createChatSession("pending-history", queryClient));
   const [threadId, setThreadId] = useState<string | null>(null);
+  const [model, setModel] = useState("");
   const [confirmClear, setConfirmClear] = useState(false);
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const session = threadId ? getChatSession(sessions, threadId, queryClient) : pendingSession;
@@ -107,7 +108,7 @@ export function useChatSession() {
     switchThread(id);
   }, [sessions, queryClient, switchThread]);
   const retryHistory = useCallback(() => { void session.load(); }, [session]);
-  const sendText = useCallback((text: string) => { void session.sendText(text); }, [session]);
+  const sendText = useCallback((text: string) => { void session.sendText(text, model || undefined); }, [session, model]);
   const stop = useCallback(() => session.stop(), [session]);
 
   const handleClear = useCallback(() => {
@@ -134,6 +135,6 @@ export function useChatSession() {
 
   return {
     threadId, hydrated, historyError, retryHistory, messages, isStreaming, canSend,
-    progress, error, clearError, stop, confirmClear, handleClear, sendText, startNewThread, switchThread,
+    model, setModel, progress, error, clearError, stop, confirmClear, handleClear, sendText, startNewThread, switchThread,
   };
 }

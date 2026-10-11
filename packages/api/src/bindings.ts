@@ -3,6 +3,9 @@ import type { EvlogVariables } from "evlog/hono";
 
 export interface Env {
   DATABASE_URL: string;
+  // Base64 32-byte AES KEKs. Keep old versions until credentials are re-encrypted.
+  PROVIDER_KEY_KEK_V1?: string;
+  PROVIDER_KEY_KEK_V2?: string;
   AI: Ai;
   PROCESS_ITEM: Workflow;
   // Better Auth

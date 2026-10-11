@@ -2,6 +2,8 @@
 
 import React, { memo, useState, useRef, useEffect } from "react";
 import ChatMessage from "./ChatMessage";
+import { useQuery } from "@tanstack/react-query";
+import { availableModels, settingsQuery } from "../lib/settings";
 import { useChatSession, type ChatStage } from "../hooks/use-chat-session";
 
 const SUGGESTIONS = [
@@ -17,13 +19,16 @@ const PROGRESS_LABELS: Record<ChatStage, string> = {
 };
 
 // Draft state stays here: typing does not render the transcript or parse Markdown.
-const ChatComposer = memo(function ChatComposer({ canSend, isStreaming, sendText, stop, messageCount }: {
+const ChatComposer = memo(function ChatComposer({ canSend, isStreaming, sendText, stop, messageCount, model, setModel }: {
+  model: string;
+  setModel: (model: string) => void;
   canSend: boolean;
   isStreaming: boolean;
   sendText: (text: string) => void;
   stop: () => void;
   messageCount: number;
 }) {
+  const { data: settings } = useQuery(settingsQuery);
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   useEffect(() => { setInput(""); }, [messageCount]);
@@ -63,6 +68,10 @@ const ChatComposer = memo(function ChatComposer({ canSend, isStreaming, sendText
           <button type="submit" disabled={!canSend || !input.trim()} className="px-5 py-3 rounded-xl text-[15px] font-medium text-white transition-all duration-150 hover:scale-[0.98] active:scale-[0.96] disabled:opacity-40 disabled:pointer-events-none" style={{ backgroundColor: "var(--color-accent)" }}>Send</button>
         )}
       </form>
+      <div className="max-w-2xl mx-auto mt-2"><select aria-label="Chat model" value={model} onChange={(event) => setModel(event.target.value)} disabled={isStreaming} className="max-w-full text-xs p-2 rounded-md border border-[var(--color-border)] bg-[var(--color-bg-card)]">
+        <option value="">Default{settings?.chatModel ? ` (${settings.chatModel})` : ""}</option>
+        {availableModels(settings).map((id) => <option key={id} value={id}>{id}</option>)}
+      </select></div>
       <p className="text-[11px] text-center mt-2" style={{ color: "var(--color-text-muted)", opacity: 0.6 }}>Answers are grounded in your knowledge base</p>
     </div>
   );
@@ -72,7 +81,7 @@ export default function ChatView() {
   const {
     threadId, hydrated, historyError, retryHistory, startNewThread,
     messages, isStreaming, canSend, progress, error, clearError, stop,
-    confirmClear, handleClear, sendText,
+    confirmClear, handleClear, sendText, model, setModel,
   } = useChatSession();
   const showEmptyState = hydrated && !historyError && messages.length === 0;
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -176,12 +185,12 @@ export default function ChatView() {
           {isStreaming && <p role="status" className="text-sm py-3" style={{ color: "var(--color-text-muted)" }}>{progress ? PROGRESS_LABELS[progress] : "Preparing your answer…"}</p>}
           {error && (
             <div role="alert" className="text-sm px-4 py-3 rounded-xl" style={{ backgroundColor: "rgba(217, 79, 79, 0.06)", color: "var(--color-error)" }}>
-              {error.message === "No saved items found. Save some content first!" ? error.message : "Something went wrong. Please try again."}{" "}<button onClick={() => clearError()} className="underline underline-offset-2" style={{ color: "var(--color-accent)" }}>Dismiss</button>
+              {/^(No saved items|Your (openai|anthropic|google|openrouter) key|Rate limited \/ out of credit|Unable to answer)/.test(error.message) ? error.message : "Something went wrong. Check your model and provider settings, then try again."}{" "}<button onClick={() => clearError()} className="underline underline-offset-2" style={{ color: "var(--color-accent)" }}>Dismiss</button>
             </div>
           )}
         </div>
       </div>
-      <ChatComposer key={threadId} canSend={canSend} isStreaming={isStreaming} sendText={sendText} stop={stop} messageCount={messages.length} />
+      <ChatComposer key={threadId} canSend={canSend} isStreaming={isStreaming} sendText={sendText} stop={stop} messageCount={messages.length} model={model} setModel={setModel} />
     </div>
   );
 }

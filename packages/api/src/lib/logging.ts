@@ -24,9 +24,12 @@ initLogger({
     paths: [
       "**.stack", "**.data", "**.internal", "**.headers", "**.params",
       "**.value", "**.text", "**.prompt", "**.responseBody", "**.requestBodyValues",
+      "**.accessToken", "**.refreshToken", "**.access_token", "**.refresh_token", "**.ciphertext", "**.codeVerifier", "**.code_verifier", "**.key", "**.iv",
       "**.rawContent", "**.password", "**.token", "**.secret", "**.authorization", "**.apiKey",
     ],
     patterns: [
+      /sk-(?:ant-)?[\w-]{20,}/g,
+      /AIza[\w-]{30,}/g,
       /\b(?:https?|postgres(?:ql)?):\/\/[^\s"'<>]+/gi,
       /\bBearer\s+[^\s"']+/gi,
       /"(?:password|token|secret|authorization|api[_-]?key)"\s*:\s*"(?:\\.|[^"\\])*"/gi,

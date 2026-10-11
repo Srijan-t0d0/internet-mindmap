@@ -36,6 +36,11 @@ try {
   log.error({ error: new Error(JSON.stringify({ token: 'prefix"__escaped_private__', password: "__json_password__" })) });
   assert.ok(!JSON.stringify(records.at(-1)).includes("__escaped_private__"));
   assert.ok(!JSON.stringify(records.at(-1)).includes("__json_password__"));
+  const secrets = { accessToken: "__access__", refresh_token: "__refresh__", ciphertext: "__ciphertext__", codeVerifier: "__verifier__" };
+  log.error({ nested: secrets, message: `sk-${"x".repeat(30)} sk-ant-${"y".repeat(30)} AIza${"z".repeat(35)}` });
+  const redacted = JSON.stringify(records.at(-1));
+  for (const secret of [...Object.values(secrets), "x".repeat(30), "y".repeat(30), "z".repeat(35)]) assert.ok(!redacted.includes(secret));
+
   const cyclic = new Error("cyclic");
   cyclic.cause = cyclic;
   log.error({ error: cyclic });

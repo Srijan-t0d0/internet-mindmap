@@ -17,6 +17,7 @@ import agentRoute from "./routes/agent";
 import importRoute from "./routes/import";
 import usageRoute from "./routes/usage";
 import adminRoute from "./routes/admin";
+import settingsRoute from "./routes/settings";
 
 export { ProcessItemWorkflow } from "./workflows/process-item";
 
@@ -77,6 +78,8 @@ app.use("/api/tags/*", requireAuth);
 app.use("/api/agent/*", requireAuth);
 app.use("/api/import/*", requireAuth);
 app.use("/api/usage/*", requireAuth);
+app.use("/api/settings/*", requireAuth);
+app.use("/api/settings/*", createRateLimiter(10, "1 m", "settings"));
 
 // Rate limiters (after auth, so userId is available)
 app.use("/api/chat/*", createRateLimiter(20, "1 m", "chat"));
@@ -95,6 +98,7 @@ const routes = app
   .route("/api/agent", agentRoute)
   .route("/api/import", importRoute)
   .route("/api/usage", usageRoute)
+  .route("/api/settings", settingsRoute)
   .route("/api/admin", adminRoute)
   .get("/", (c) => c.json({ status: "ok", service: "internet-mindmap-api" }, 200));
 

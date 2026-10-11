@@ -17,6 +17,10 @@ APP_BASE_URL = "https://internet-mindmap.vercel.app"
 # LLM_AUXILIARY = "@cf/openai/gpt-oss-20b"
 # LLM_TAGGING   = "@cf/openai/gpt-oss-20b"
 
+# BYOK encryption: provision PROVIDER_KEY_KEK_V1 as a secret (base64 32 random bytes).
+# Back it up in a password manager. Do not put provider keys or KEKs in [vars].
+#   wrangler secret put PROVIDER_KEY_KEK_V1
+
 # DATABASE_URL is set as a Worker secret (not a var — keeps connection string out of source):
 #   wrangler secret put DATABASE_URL
 # Paste your Neon pooled connection string:

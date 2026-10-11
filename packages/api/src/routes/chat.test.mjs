@@ -5,6 +5,7 @@ import { registerHooks, stripTypeScriptTypes } from "node:module";
 import { readFileSync } from "node:fs";
 import * as ai from "ai";
 import { Hono } from "hono";
+import { HTTPException } from "hono/http-exception";
 
 const deferred = () => {
   let resolve, reject;
@@ -64,7 +65,13 @@ const fake = {
     };
   },
   getDb: () => db,
-  createChatModel: () => ({}),
+  getChatModel: async () => {
+    if (state.resolutionError) throw state.resolutionError;
+    return { model: {}, modelId: "workers-ai:answer-model", systemPrompt: "Custom" };
+  },
+  validateChatModel: async (_env, _user, model) => { if (model !== "workers-ai:answer-model") throw new HTTPException(400); },
+  chatProviderError: () => null,
+  invalidateChatCredential: async () => {},
   buildEmbeddingRegistry: () => ({ active: () => ({ id: "embed", embed() {
     state.events.push("embedding"); return state.embedding.promise;
   } }) }),
@@ -97,7 +104,7 @@ globalThis.__chatMocks = fake;
 const modules = {
   ai: ["streamText", "createUIMessageStreamResponse", "createUIMessageStream", "generateId"],
   "drizzle-orm": ["inArray", "and", "eq", "not", "sql"],
-  "../ai/llm/chat-model": ["createChatModel"],
+  "../ai/llm/user-model": ["getChatModel", "validateChatModel", "chatProviderError", "invalidateChatCredential"],
   "../db/client": ["getDb"], "../ai/embeddings/registry": ["buildEmbeddingRegistry"],
   "../lib/vector-search": ["vectorSearchPassages", "ftsSearchPassages", "rrfFuse", "toVectorLiteral"],
   "../lib/rerank": ["rerank"], "../lib/condense": ["condenseQuery"],
@@ -132,9 +139,9 @@ function reset() {
     fts: deferred(), followups: deferred(), title: deferred() };
 }
 const tick = () => new Promise((resolve) => setImmediate(resolve));
-const request = (text = "Find my saved page") => app.request("/chat", {
+const request = (text = "Find my saved page", model) => app.request("/chat", {
   method: "POST", headers: { "content-type": "application/json" },
-  body: JSON.stringify({ id: "thread", messages: [{ id: "user", role: "user", parts: [{ type: "text", text }] }] }),
+  body: JSON.stringify({ id: "thread", model, messages: [{ id: "user", role: "user", parts: [{ type: "text", text }] }] }),
 }, { AI: {} }, { waitUntil() {} });
 async function collect(response, parts) {
   const reader = response.body.getReader();
@@ -154,6 +161,16 @@ try {
   assert.equal((await request("")).status, 400);
   assert.equal((await request("x".repeat(1001))).status, 400);
   assert.deepEqual(state.events, []);
+
+  reset();
+  assert.equal((await request("hi", "workers-ai:@cf/unauthorized")).status, 400);
+  assert.deepEqual(state.events, []);
+  reset(); state.resolutionError = new Error("__key_secret__");
+  const resolutionFailure = await request("hi");
+  assert.equal(resolutionFailure.status, 200);
+  const resolutionParts = []; await collect(resolutionFailure, resolutionParts);
+  assert.ok(resolutionParts.some((part) => part.type === "error"));
+  assert.ok(!JSON.stringify(resolutionParts).includes("__key_secret__"));
 
   reset(); state.foreignThread = true;
   const forbidden = await request();

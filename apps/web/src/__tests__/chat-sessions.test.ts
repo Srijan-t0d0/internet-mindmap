@@ -169,14 +169,16 @@ describe("retained chat sessions", () => {
     sessions.set("a", a);
     sessions.set("b", b);
     await Promise.all([a.load(), b.load(), a.sendText("   ")]);
-    const aSend = a.sendText("  Ask A  ");
+    const aSend = a.sendText("  Ask A  ", "openai:gpt-4.1");
     await a.sendText("Duplicate A");
     expect(aStream.transport.sendMessages).toHaveBeenCalledOnce();
+    expect(aStream.transport.sendMessages.mock.calls[0][0].body).toEqual({ model: "openai:gpt-4.1" });
     expect(a.chat.messages).toHaveLength(1);
     expect(text(a)).toBe("Ask A");
     expect(a.chat.status).toBe("submitted");
     expect(getChatSession(sessions, "b", queryClient)).toBe(b);
     const bSend = b.sendText("Ask B");
+    expect(bStream.transport.sendMessages.mock.calls[0][0].body).toEqual({});
     startReply(bStream, "reply-b", "Answer B");
     bStream.push({ type: "data-status", data: { stage: "searching" }, transient: true });
     await until(b, () => b.getSnapshot().progress === "searching" && text(b).includes("Answer B"));

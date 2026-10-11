@@ -236,6 +236,27 @@ export const verification = pgTable("verification", {
   updatedAt: timestamp("updatedAt"),
 });
 
+export const userSettings = pgTable("user_settings", {
+  userId: text("user_id").primaryKey().references(() => user.id, { onDelete: "cascade" }),
+  chatModel: text("chat_model"),
+  systemPrompt: text("system_prompt"),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export type ChatProvider = "openai" | "anthropic" | "google" | "openrouter";
+export const userProviderCredentials = pgTable("user_provider_credentials", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+  provider: text("provider").$type<ChatProvider>().notNull(),
+  ciphertext: text("ciphertext").notNull(),
+  iv: text("iv").notNull(),
+  keyVersion: integer("key_version").notNull(),
+  last4: text("last4").notNull(),
+  status: text("status").$type<"ok" | "invalid">().notNull().default("ok"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+}, (table) => [uniqueIndex("user_provider_credentials_user_provider_unique").on(table.userId, table.provider)]);
+
 // ── Usage tracking ─────────────────────────────────────────────────────────
 
 export const usageEvents = pgTable(
