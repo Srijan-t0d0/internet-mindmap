@@ -1,6 +1,7 @@
 "use client";
 
 import React, { memo, useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import ChatMessage from "./ChatMessage";
 import { useQuery } from "@tanstack/react-query";
 import { settingsQuery } from "../lib/settings";
@@ -84,6 +85,8 @@ export default function ChatView() {
     // and respects reduced motion. A reader who scrolls up keeps their position.
     container.scrollTo({ top: container.scrollHeight, behavior: "instant" });
   }, [messages, hydrated, progress]);
+
+  const errorText = error && (/^(No saved items|Your (openai|anthropic|google|openrouter) key|Rate limited \/ out of credit|Unable to answer)/.test(error.message) ? error.message : "Something went wrong. Check your model and provider settings, then try again.");
 
   return (
     <div className="flex-1 h-screen flex flex-col overflow-hidden">
@@ -173,7 +176,7 @@ export default function ChatView() {
           {isStreaming && <p role="status" className="text-sm py-3" style={{ color: "var(--color-text-muted)" }}>{progress ? PROGRESS_LABELS[progress] : "Preparing your answer…"}</p>}
           {error && (
             <div role="alert" className="text-sm px-4 py-3 rounded-xl" style={{ backgroundColor: "rgba(217, 79, 79, 0.06)", color: "var(--color-error)" }}>
-              {/^(No saved items|Your (openai|anthropic|google|openrouter) key|Rate limited \/ out of credit|Unable to answer)/.test(error.message) ? error.message : "Something went wrong. Check your model and provider settings, then try again."}{" "}<button onClick={() => clearError()} className="underline underline-offset-2" style={{ color: "var(--color-accent)" }}>Dismiss</button>
+              {errorText?.split(/(settings)/i).map((part, i) => i % 2 ? <Link key={i} href="/settings" className="underline underline-offset-2">{part}</Link> : part)}{" "}<button onClick={() => clearError()} className="underline underline-offset-2" style={{ color: "var(--color-accent)" }}>Dismiss</button>
             </div>
           )}
         </div>
