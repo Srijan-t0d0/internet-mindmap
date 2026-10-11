@@ -16,7 +16,8 @@
     "db:introspect": "drizzle-kit introspect",
     "db:studio": "drizzle-kit studio",
     "backfill:contextual": "node scripts/backfill-contextual.mjs",
-    "eval:chat": "node scripts/eval-chat.mjs"
+    "eval:chat": "node scripts/eval-chat.mjs",
+    "eval:retrieval": "vitest run -c evals/vitest.config.ts"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "3.0.129",
@@ -45,6 +46,8 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20250327.0",
+    "@electric-sql/pglite": "^0.5.8",
+    "@electric-sql/pglite-pgvector": "^0.0.9",
     "@types/node": "^25.5.0",
     "drizzle-kit": "^0.31.10",
     "typescript": "^5.7.0",

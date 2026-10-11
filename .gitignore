@@ -37,3 +37,6 @@ npm-debug.log*
 
 # local claude scheduled-task state
 .claude/
+
+# Retrieval eval set is built from a personal corpus; keep it local.
+packages/api/evals/retrieval.json
