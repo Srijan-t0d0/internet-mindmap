@@ -36,6 +36,13 @@
       "when": 1791702497158,
       "tag": "0006_oauth_provider",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791703844552,
+      "tag": "0010_byok_settings",
+      "breakpoints": true
     }
   ]
 }

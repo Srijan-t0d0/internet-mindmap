@@ -9,7 +9,9 @@ import {
   uniqueIndex,
   vector,
   jsonb,
+  check,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import type { EmbeddingModality, SourceType } from "@internet-mindmap/shared";
 import type { UIMessagePart } from "ai";
 
@@ -243,7 +245,7 @@ export const userSettings = pgTable("user_settings", {
   chatModel: text("chat_model"),
   systemPrompt: text("system_prompt"),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-});
+}, (table) => [check("user_settings_system_prompt_check", sql`length(${table.systemPrompt}) <= 2000`)]);
 
 export type ChatProvider = "openai" | "anthropic" | "google" | "openrouter";
 export const userProviderCredentials = pgTable("user_provider_credentials", {
@@ -257,7 +259,11 @@ export const userProviderCredentials = pgTable("user_provider_credentials", {
   status: text("status").$type<"ok" | "invalid">().notNull().default("ok"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
-}, (table) => [uniqueIndex("user_provider_credentials_user_provider_unique").on(table.userId, table.provider)]);
+}, (table) => [
+  uniqueIndex("user_provider_credentials_user_provider_unique").on(table.userId, table.provider),
+  check("user_provider_credentials_provider_check", sql`${table.provider} IN ('openai','anthropic','google','openrouter')`),
+  check("user_provider_credentials_status_check", sql`${table.status} IN ('ok','invalid')`),
+]);
 
 // ── Usage tracking ─────────────────────────────────────────────────────────
 

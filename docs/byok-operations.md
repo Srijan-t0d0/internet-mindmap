@@ -2,7 +2,7 @@
 
 No remote migrations, secrets, or deployments were performed by this implementation.
 
-1. Review and merge the additive `packages/api/drizzle/0010_byok_settings.sql` with the independent MCP migrations. The custom migration runner discovers named SQL files directly; no Drizzle journal update is required by that runner. Before future `db:generate`, reconcile Drizzle snapshot metadata with the merged schema (the hand-written migration is not in the snapshot).
+1. The additive `packages/api/drizzle/0010_byok_settings.sql` is integrated with MCP's independent `0006_oauth_provider.sql`. The custom migration runner discovers named SQL files directly. Drizzle's journal and generated snapshot include the combined schema; the BYOK snapshot is numbered 0005 because snapshot numbering differs from manual SQL migration numbering.
 2. Generate a random 32-byte key, encode it in base64, and preserve it in a password manager. Configure `PROVIDER_KEY_KEK_V1` through Wrangler secrets in the intended environment. Never commit this value. Without it, Workers AI still works; saving/decrypting external keys fails closed.
 3. Test migrations on a disposable Neon branch first, then apply to the intended database after approval.
 4. Confirm `APP_BASE_URL` is the exact web origin (no trailing slash) and `BETTER_AUTH_URL` points at the public API origin/proxy. The OpenRouter callback is `${BETTER_AUTH_URL}/api/settings/openrouter/callback`. SameSite=Lax session cookies must reach it after the external redirect.

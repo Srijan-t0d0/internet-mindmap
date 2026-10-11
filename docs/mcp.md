@@ -1,6 +1,6 @@
 # Internet Mindmap MCP
 
-Implementation is ready for integration. **Not deployed or submitted to directories.** The production connector URL below becomes usable only after the operational checks in this document.
+Implementation is integrated locally with BYOK. **Not deployed or submitted to directories.** The production connector URL below becomes usable only after the operational checks in this document.
 
 ## Connect
 
@@ -58,7 +58,7 @@ The former global agent search is deleted. `AGENT_API_TOKEN` is now admin-only a
 
 Nothing in this implementation applied a remote migration, rotated a secret, deployed a Worker, or submitted a directory entry.
 
-1. Merge BYOK separately; resolve shared imports, auth/index/schema exports, package versions, lockfile and account-menu links. Preserve BYOK model resolution and exact-origin CORS. MCP adds only allowed headers (`mcp-protocol-version`, `mcp-method`, `mcp-name`) and exposed `WWW-Authenticate`.
+1. Local BYOK integration is complete: shared chat model resolution, auth/index/schema exports, dependencies, lockfile, account-menu links and migration snapshots are combined. CORS retains exact origins and BYOK's PUT method; MCP adds allowed headers (`mcp-protocol-version`, `mcp-method`, `mcp-name`) and exposed `WWW-Authenticate`.
 2. Create a Neon branch/snapshot. Apply **0006_oauth_provider.sql** only on the test branch with the existing migration runner; the migration is additive (eight new tables, no core column renames or data writes). Drizzle's generated snapshot is numbered 0004 because manual chunk migrations 0004/0005 have no snapshots. Their already-existing column additions were removed from this new SQL; historical migrations were left unchanged. BYOK's 0010 migration remains independent.
 3. Verify existing Google sign-in, cookie sessions and extension bearer sessions against the upgraded Drizzle adapter on the Neon branch. Verify affected-row behavior with the actual Neon HTTP adapter. Memory-adapter protocol tests are not a substitute for this check.
 4. Set `BETTER_AUTH_URL` and `APP_BASE_URL` to the single public web origin; configure `MCP_WORKER_ORIGIN` as the exact trusted Worker destination. Update both Vercel rewrite configs and the plugin URL if the canonical domain changes. Set both Upstash Redis secrets before enabling MCP. Approve any exact `MCP_INSPECTOR_ORIGIN` in CORS separately; server-to-server clients need no CORS.

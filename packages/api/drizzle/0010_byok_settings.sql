@@ -1,5 +1,5 @@
 CREATE TABLE user_settings (
- user_id text PRIMARY KEY REFERENCES "user"(id) ON DELETE CASCADE,
+ user_id text PRIMARY KEY CONSTRAINT user_settings_user_id_user_id_fk REFERENCES "user"(id) ON DELETE CASCADE,
  chat_model text,
  system_prompt text CHECK (length(system_prompt) <= 2000),
  updated_at timestamp NOT NULL DEFAULT now()
@@ -7,7 +7,7 @@ CREATE TABLE user_settings (
 --> statement-breakpoint
 CREATE TABLE user_provider_credentials (
  id text PRIMARY KEY,
- user_id text NOT NULL REFERENCES "user"(id) ON DELETE CASCADE,
+ user_id text NOT NULL CONSTRAINT user_provider_credentials_user_id_user_id_fk REFERENCES "user"(id) ON DELETE CASCADE,
  provider text NOT NULL CHECK (provider IN ('openai','anthropic','google','openrouter')),
  ciphertext text NOT NULL,
  iv text NOT NULL,
