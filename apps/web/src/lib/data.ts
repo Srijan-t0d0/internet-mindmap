@@ -10,6 +10,7 @@ import { cache } from "react";
 import { cookies } from "next/headers";
 import type { SourceType } from "@internet-mindmap/shared";
 import { createServerClient } from "./api-client";
+import type { Settings } from "./settings";
 
 async function getClient() {
   const cookieStore = await cookies();
@@ -80,6 +81,17 @@ export const searchItemsServer = cache(async (params: {
   if (!res.ok) {
     throw new Error(`Search failed: ${res.status}`);
   }
+  return res.json();
+});
+
+export const getSettings = cache(async (): Promise<Settings> => {
+  const cookieStore = await cookies();
+  const workerUrl = process.env.API_WORKER_URL ?? "http://localhost:8787";
+  const res = await fetch(`${workerUrl}/api/settings`, {
+    headers: { Cookie: cookieStore.toString() },
+    cache: "no-store",
+  });
+  if (!res.ok) throw new Error(`Failed to fetch settings: ${res.status}`);
   return res.json();
 });
 

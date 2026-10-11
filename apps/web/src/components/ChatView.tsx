@@ -3,7 +3,8 @@
 import React, { memo, useState, useRef, useEffect } from "react";
 import ChatMessage from "./ChatMessage";
 import { useQuery } from "@tanstack/react-query";
-import { availableModels, settingsQuery } from "../lib/settings";
+import { settingsQuery } from "../lib/settings";
+import ModelPicker from "./ModelPicker";
 import { useChatSession, type ChatStage } from "../hooks/use-chat-session";
 
 const SUGGESTIONS = [
@@ -68,10 +69,7 @@ const ChatComposer = memo(function ChatComposer({ canSend, isStreaming, sendText
           <button type="submit" disabled={!canSend || !input.trim()} className="px-5 py-3 rounded-xl text-[15px] font-medium text-white transition-all duration-150 hover:scale-[0.98] active:scale-[0.96] disabled:opacity-40 disabled:pointer-events-none" style={{ backgroundColor: "var(--color-accent)" }}>Send</button>
         )}
       </form>
-      <div className="max-w-2xl mx-auto mt-2"><select aria-label="Chat model" value={model} onChange={(event) => setModel(event.target.value)} disabled={isStreaming} className="max-w-full text-xs p-2 rounded-md border border-[var(--color-border)] bg-[var(--color-bg-card)]">
-        <option value="">Default{settings?.chatModel ? ` (${settings.chatModel})` : ""}</option>
-        {availableModels(settings).map((id) => <option key={id} value={id}>{id}</option>)}
-      </select></div>
+      <div className="max-w-2xl mx-auto mt-2"><ModelPicker value={model} onChange={setModel} settings={settings} disabled={isStreaming} /></div>
       <p className="text-[11px] text-center mt-2" style={{ color: "var(--color-text-muted)", opacity: 0.6 }}>Answers are grounded in your knowledge base</p>
     </div>
   );

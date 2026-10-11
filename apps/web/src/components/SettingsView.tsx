@@ -1,15 +1,16 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { availableModels, settingsQuery, settingsRequest, type Provider } from "../lib/settings";
+import { settingsQuery, settingsRequest, type Provider, type Settings } from "../lib/settings";
+import ModelPicker from "./ModelPicker";
 
 const control = "w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-card)] px-3 py-2 text-sm focus:outline-2 focus:outline-[var(--color-accent)]";
 const button = "rounded-lg border border-[var(--color-border)] px-3 py-2 text-sm hover:bg-[var(--color-bg-secondary)] disabled:opacity-50";
-export default function SettingsView() {
-  const { data, error, isPending } = useQuery(settingsQuery);
+export default function SettingsView({ initialSettings, updatedAt }: { initialSettings: Settings; updatedAt: number }) {
+  const { data, error, isPending } = useQuery({ ...settingsQuery, initialData: initialSettings, initialDataUpdatedAt: updatedAt });
   const client = useQueryClient();
-  const [model, setModel] = useState("");
-  const [prompt, setPrompt] = useState("");
+  const [model, setModel] = useState(initialSettings.chatModel ?? "");
+  const [prompt, setPrompt] = useState(initialSettings.systemPrompt ?? "");
   const [keys, setKeys] = useState<Partial<Record<Provider, string>>>({});
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -43,7 +44,7 @@ export default function SettingsView() {
             </div>;
           })}</section>
         <form className="space-y-5" onSubmit={(event) => { event.preventDefault(); void mutate("", "PATCH", { chatModel: model || null, systemPrompt: prompt || null }); }}>
-          <div><label htmlFor="chat-model" className="block font-medium mb-2">Default chat model</label><input id="chat-model" className={control} list="chat-models" value={model} maxLength={200} placeholder="Default Workers AI model" onChange={(event) => setModel(event.target.value)} disabled={busy} /><datalist id="chat-models">{availableModels(data).map((model) => <option key={model} value={model} />)}</datalist><p className="text-sm mt-2">Choose a suggestion or enter provider:model. Connect its provider first.</p></div>
+          <div><label htmlFor="chat-model" className="block font-medium mb-2">Default chat model</label><ModelPicker id="chat-model" label="Default chat model" value={model} onChange={setModel} settings={data} disabled={busy} /><p className="text-sm mt-2">Search models by name or company. Connect a provider to see its models.</p></div>
           <div><label htmlFor="custom-prompt" className="block font-medium mb-2">Custom instructions</label><textarea id="custom-prompt" className={control} rows={5} maxLength={2000} value={prompt} onChange={(event) => setPrompt(event.target.value)} disabled={busy} aria-describedby="prompt-count" /><p id="prompt-count" className="text-sm mt-2">{prompt.length}/2000 · Citation rules always apply.</p></div>
           <button className={button} disabled={busy}>{busy ? "Saving…" : "Save preferences"}</button>
         </form>
