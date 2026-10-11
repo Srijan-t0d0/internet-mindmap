@@ -15,10 +15,12 @@ import { DEFAULT_MODELS, getModels } from "./models";
 export const WORKERS_CHAT_MODELS = [DEFAULT_MODELS.synthesis, DEFAULT_MODELS.auxiliary];
 export const CHAT_PROVIDERS = ["openai", "anthropic", "google", "openrouter"] as const;
 export function parseChatModel(model: unknown): { provider: "workers-ai" | ChatProvider; id: string } {
-  if (typeof model !== "string" || model.length > 200 || !/^[a-z-]+:[\w@./-]+$/.test(model))
+  if (typeof model !== "string" || model.length > 200 || !/^[a-z-]+:[\w@./-]+(?::[\w-]+)?$/.test(model))
     throw new HTTPException(400, { message: "Invalid model ID (use provider:model)" });
-  const [provider, ...parts] = model.split(":");
-  const id = parts.join(":");
+  const separator = model.indexOf(":");
+  const provider = model.slice(0, separator);
+  const id = model.slice(separator + 1);
+  if (id.includes(":") && provider !== "openrouter") throw new HTTPException(400, { message: "Model variant is not allowed for this provider" });
   if (provider === "workers-ai" && WORKERS_CHAT_MODELS.includes(id as typeof DEFAULT_MODELS.synthesis)) return { provider, id };
   if (CHAT_PROVIDERS.includes(provider as ChatProvider)) return { provider: provider as ChatProvider, id };
   throw new HTTPException(400, { message: "Model is not allowed" });

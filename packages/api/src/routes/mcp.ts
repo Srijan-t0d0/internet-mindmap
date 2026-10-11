@@ -53,12 +53,13 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().all("/", async (
   const source = `mcp:${clientId}`;
   const record = (tool: string) => waitUntil(recordUsageEvent(c.env, { userId, requestId: c.get("requestId"),
     eventType: "mcp_call", source, metadata: { tool } }));
-  const result = (value: unknown) => ({ content: [{ type: "text" as const, text: JSON.stringify(value) }] });
+  const result = (value: Record<string, unknown>) => ({ structuredContent: value, content: [{ type: "text" as const, text: JSON.stringify(value) }] });
   const handler = createMcpHandler(() => {
     const server = new McpServer({ name: "internet-mindmap", version: "1.0.0" });
     server.registerTool("search", {
       title: "Search saved knowledge", description: "Search your saved pages using semantic and keyword retrieval. Returns citation URLs and short excerpts.",
       inputSchema: z.object({ query: z.string().trim().min(1).max(1000), limit: z.number().int().min(1).max(20).default(10) }),
+      outputSchema: z.object({ results: z.array(z.object({ id: z.string(), title: z.string(), url: z.string().min(1), snippet: z.string() })) }),
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     }, async ({ query, limit }) => {
       if (!scopes.has("kb:read")) throw new Error("Insufficient scope");
@@ -78,6 +79,9 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().all("/", async (
       title: "Read a saved page", description: "Read the text and metadata of a saved page by ID. Long text is paginated by character offset.",
       inputSchema: z.object({ id: z.string().min(1).max(200), offset: z.number().int().min(0).max(10_000_000).default(0),
         max_chars: z.number().int().min(1).max(20_000).default(20_000) }),
+      outputSchema: z.object({ id: z.string(), title: z.string(), text: z.string(), url: z.string().min(1),
+        metadata: z.object({ tags: z.array(z.string()), summary: z.string().nullable(), savedAt: z.string(),
+          source_type: z.string(), truncated: z.boolean(), next_offset: z.number().int().min(0).nullable() }) }),
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
     }, async ({ id, offset, max_chars }) => {
       if (!scopes.has("kb:read")) throw new Error("Insufficient scope");
@@ -86,7 +90,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().all("/", async (
       const [item] = await db.select({ id: schema.items.id, title: schema.items.title, url: schema.items.url,
         rawContent: schema.items.rawContent, summary: schema.items.summary, createdAt: schema.items.createdAt, sourceType: schema.items.sourceType })
         .from(schema.items).where(and(eq(schema.items.id, id), eq(schema.items.userId, userId)));
-      if (!item) return { isError: true, ...result({ error: "Item not found" }) };
+      if (!item) return { isError: true, content: [{ type: "text" as const, text: JSON.stringify({ error: "Item not found" }) }] };
       const tags = await db.select({ name: schema.tags.name }).from(schema.itemTags)
         .innerJoin(schema.tags, eq(schema.itemTags.tagId, schema.tags.id)).where(eq(schema.itemTags.itemId, id)).limit(20);
       return result(projectMcpItem(item, tags.map((t) => t.name), offset, max_chars));
@@ -94,6 +98,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().all("/", async (
     server.registerTool("save_url", {
       title: "Save a page", description: "Save a URL to your knowledge base with optional title and page text. Does not fetch the page; without text, saves title and URL only. YouTube transcripts may be extracted by the ingestion pipeline.",
       inputSchema: z.object({ url: saveInput.shape.url, title: saveInput.shape.title.optional(), text: saveInput.shape.extractedText }),
+      outputSchema: z.object({ id: z.string(), status: z.string() }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     }, async ({ url, title, text }) => {
       if (!scopes.has("kb:write")) throw new Error("Insufficient scope");

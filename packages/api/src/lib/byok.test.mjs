@@ -49,12 +49,21 @@ try {
   await assert.rejects(decryptProviderKey(env, "intruder", "openai", row));
   await assert.rejects(decryptProviderKey(env, "owner", "google", row));
   await assert.rejects(decryptProviderKey({}, "owner", "openai", row));
-  const { validateChatModel, getChatModel, chatProviderError } = await import(modelsUrl);
+  const { parseChatModel, validateChatModel, getChatModel, chatProviderError } = await import(modelsUrl);
+  for (const variant of ["free", "nitro"]) {
+    const model = `openrouter:meta-llama/llama-3.2-3b-instruct:${variant}`;
+    assert.deepEqual(parseChatModel(model), { provider: "openrouter", id: `meta-llama/llama-3.2-3b-instruct:${variant}` });
+    await assert.rejects(validateChatModel(env, "owner", model));
+  }
+  for (const model of ["openrouter:", "openrouter:model:", "openrouter:model:free:extra", "openrouter:model\n", "openrouter:model free",
+    "unknown:model:free", "openai:gpt-4.1:free", "workers-ai:@cf/qwen/qwen3.8-27b:free", `openrouter:${"a".repeat(200)}`]) assert.throws(() => parseChatModel(model));
   await validateChatModel(env, "owner", "workers-ai:@cf/qwen/qwen3.8-27b");
   await assert.rejects(validateChatModel(env, "owner", "workers-ai:@cf/not-allowed"));
   await assert.rejects(validateChatModel(env, "owner", "openai:gpt-4.1"));
   credentials = [{ id: "key", ...row, status: "ok" }];
   await validateChatModel(env, "owner", "openai:gpt-4.1");
+  await validateChatModel(env, "owner", "openrouter:meta-llama/llama-3.2-3b-instruct:free");
+  await validateChatModel(env, "owner", "openrouter:openai/gpt-4.1:nitro");
   await assert.rejects(validateChatModel(env, "agent", "openai:gpt-4.1"));
   const resolved = await getChatModel(env, "owner", "openai:gpt-4.1");
   assert.equal(resolved.modelId, "openai:gpt-4.1");
