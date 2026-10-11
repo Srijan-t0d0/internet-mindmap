@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronUp, LogOut, Copy, Check, Eye } from "lucide-react";
+import { ChevronUp, LogOut } from "lucide-react";
+import Link from "next/link";
 import {
   Popover,
   PopoverContent,
@@ -37,8 +38,6 @@ function labelFor(type: string): string {
 export default function UserMenu() {
   const { data: session } = authClient.useSession();
   const [open, setOpen] = useState(false);
-  const [showToken, setShowToken] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const { data: usage, isError: usageError } = useQuery({
     queryKey: ["usage"],
@@ -50,14 +49,6 @@ export default function UserMenu() {
   if (!session) return null;
 
   const { user } = session;
-  const token = session.session.token;
-
-  async function handleCopy() {
-    await navigator.clipboard.writeText(token);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
   function handleSignOut() {
     authClient.signOut().then(() => window.location.reload());
   }
@@ -103,54 +94,10 @@ export default function UserMenu() {
           border: "1px solid var(--color-border)",
         }}
       >
-        {/* Extension token */}
-        <div className="p-3 border-b" style={{ borderColor: "var(--color-border-subtle)" }}>
-          <p
-            className="text-[11px] font-medium uppercase tracking-widest mb-2"
-            style={{ color: "var(--color-text-muted)" }}
-          >
-            Extension Token
-          </p>
-          {showToken ? (
-            <div className="space-y-2">
-              <div
-                className="px-2 py-1.5 rounded text-[11px] font-mono break-all"
-                style={{
-                  backgroundColor: "var(--color-bg)",
-                  border: "1px solid var(--color-border-subtle)",
-                  color: "var(--color-text-secondary)",
-                }}
-              >
-                {token}
-              </div>
-              <button
-                onClick={handleCopy}
-                className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium rounded transition-all duration-150"
-                style={{
-                  backgroundColor: copied ? "rgba(74, 158, 107, 0.1)" : "var(--color-bg)",
-                  border: `1px solid ${copied ? "rgba(74, 158, 107, 0.3)" : "var(--color-border-subtle)"}`,
-                  color: copied ? "var(--color-success)" : "var(--color-text-secondary)",
-                }}
-              >
-                {copied ? <Check className="size-3" /> : <Copy className="size-3" />}
-                {copied ? "Copied!" : "Copy token"}
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setShowToken(true)}
-              className="w-full flex items-center justify-center gap-1.5 py-1.5 text-xs font-medium rounded transition-all duration-150"
-              style={{
-                backgroundColor: "var(--color-bg)",
-                border: "1px solid var(--color-border-subtle)",
-                color: "var(--color-text-secondary)",
-              }}
-            >
-              <Eye className="size-3" />
-              Show token for extension
-            </button>
-          )}
-        </div>
+        <Link href="/settings/connect" onClick={() => setOpen(false)}
+          className="block p-3 text-xs underline border-b" style={{ borderColor: "var(--color-border-subtle)" }}>
+          Connect an AI
+        </Link>
 
         {/* Usage stats */}
         <div className="p-3 border-b" style={{ borderColor: "var(--color-border-subtle)" }}>

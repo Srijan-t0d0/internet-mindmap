@@ -1,102 +1,13 @@
 import { Hono } from "hono";
-import { eq, and } from "drizzle-orm";
-import { v4 as uuidv4 } from "uuid";
-import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import type { Env, Variables } from "../bindings";
-import { getDb } from "../db/client";
-import { recordUsageEvent } from "../lib/usage";
-import { enqueueItem } from "../lib/enqueue";
-import * as schema from "../db/schema";
+import { saveInput, saveItem } from "../lib/save-item";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>()
-  .post(
-    "/",
-    zValidator(
-      "json",
-      z.object({
-        url: z.string().min(1),
-        title: z.string().min(1),
-        source_type: z.enum(["youtube", "reddit", "twitter", "github", "hackernews", "substack", "blog", "other"]),
-        extractedText: z.string().optional(),
-        author: z.string().optional(),
-        published: z.string().optional(),
-        description: z.string().optional(),
-        siteName: z.string().optional(),
-        notes: z.string().optional(),
-      })
-    ),
-    async (c) => {
-      const { url, title, source_type, extractedText, author, published, description, siteName, notes } =
-        c.req.valid("json");
-
-      const db = getDb(c.env);
-      const id = uuidv4();
-      const userId = c.get("userId");
-
-      // Upsert: insert or update on URL conflict
-      const existing = await db
-        .select({ id: schema.items.id })
-        .from(schema.items)
-        .where(and(eq(schema.items.url, url), eq(schema.items.userId, userId)))
-        .then((rows) => rows[0] ?? null);
-
-      let itemId: string;
-
-      if (existing) {
-        itemId = existing.id;
-        await db
-          .update(schema.items)
-          .set({
-            title,
-            rawContent: extractedText || null,
-            status: "pending",
-            lastError: null,
-            author: author || null,
-            published: published || null,
-            description: description || null,
-            siteName: siteName || null,
-            notes: notes || null,
-            updatedAt: new Date(),
-          })
-          .where(eq(schema.items.id, existing.id));
-      } else {
-        itemId = id;
-        await db.insert(schema.items).values({
-          id,
-          url,
-          userId,
-          title,
-          sourceType: source_type,
-          rawContent: extractedText || null,
-          status: "pending",
-          author: author || null,
-          published: published || null,
-          description: description || null,
-          siteName: siteName || null,
-          notes: notes || null,
-        });
-      }
-
-      // Track the best-effort usage write for the request lifetime.
-      c.executionCtx.waitUntil(recordUsageEvent(c.env, {
-        userId,
-        requestId: c.get("requestId"),
-        eventType: "save",
-        source: "extension",
-        metadata: { itemId, url, isUpdate: !!existing },
-      }));
-
-      // Trigger workflow (use unique instance ID to avoid conflict with prior runs)
-      await enqueueItem(c.env, `${itemId}-${Date.now()}`, {
-        itemId, url, source_type, userId, requestId: c.get("requestId"),
-      });
-
-      return c.json(
-        { id: itemId, status: "pending", message: "Saved. Processing in background." },
-        201
-      );
-    }
-  );
-
+  .post("/", zValidator("json", saveInput), async (c) => {
+    const result = await saveItem(c.env, c.get("userId"), c.req.valid("json"), {
+      requestId: c.get("requestId"), waitUntil: (task) => c.executionCtx.waitUntil(task),
+    });
+    return c.json(result, 201);
+  });
 export default app;

@@ -13,7 +13,9 @@ import itemsRoute from "./routes/items";
 import chatRoute from "./routes/chat";
 import threadsRoute from "./routes/threads";
 import tagsRoute from "./routes/tags";
-import agentRoute from "./routes/agent";
+import mcpRoute from "./routes/mcp";
+import { oauthProviderAuthServerMetadata, oauthProviderOpenIdConfigMetadata } from "@better-auth/oauth-provider";
+import { mcpUrls } from "./lib/mcp-auth";
 import importRoute from "./routes/import";
 import usageRoute from "./routes/usage";
 import adminRoute from "./routes/admin";
@@ -68,6 +70,17 @@ app.on(["GET", "POST", "DELETE"], "/api/auth/*", (c) => {
   return c.get("auth").handler(c.req.raw);
 });
 
+// RFC 8414 path insertion for the /api/auth issuer; PRM identifies the exact resource.
+app.get("/.well-known/oauth-authorization-server/api/auth", (c) => oauthProviderAuthServerMetadata(c.get("auth"))(c.req.raw));
+app.get("/.well-known/openid-configuration/api/auth", (c) => oauthProviderOpenIdConfigMetadata(c.get("auth"))(c.req.raw));
+app.get("/.well-known/oauth-protected-resource/api/mcp", (c) => {
+  const { resource, issuer } = mcpUrls(c.env);
+  return c.json({ resource, authorization_servers: [issuer], scopes_supported: ["kb:read", "kb:write"],
+    bearer_methods_supported: ["header"], resource_name: "Internet Mindmap" });
+});
+// MCP deliberately bypasses session/bearer auth used by the extension.
+app.route("/api/mcp", mcpRoute);
+
 // Auth for all API routes (except /api/auth/*)
 app.use("/api/save/*", requireAuth);
 app.use("/api/search/*", requireAuth);
@@ -75,7 +88,6 @@ app.use("/api/items/*", requireAuth);
 app.use("/api/chat/*", requireAuth);
 app.use("/api/threads/*", requireAuth);
 app.use("/api/tags/*", requireAuth);
-app.use("/api/agent/*", requireAuth);
 app.use("/api/import/*", requireAuth);
 app.use("/api/usage/*", requireAuth);
 app.use("/api/settings/*", requireAuth);
@@ -95,7 +107,6 @@ const routes = app
   .route("/api/chat", chatRoute)
   .route("/api/threads", threadsRoute)
   .route("/api/tags", tagsRoute)
-  .route("/api/agent", agentRoute)
   .route("/api/import", importRoute)
   .route("/api/usage", usageRoute)
   .route("/api/settings", settingsRoute)

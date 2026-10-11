@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "internet-mindmap": {
+      "type": "http",
+      "url": "https://internet-mindmap.vercel.app/api/mcp"
+    }
+  }
+}

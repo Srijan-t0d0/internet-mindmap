@@ -28,6 +28,7 @@ export function preprocessCitations(text: string, passages: ChatPassage[]): stri
 }
 
 export const citationComponents: Components = {
+  img: () => null, // Saved content must not trigger remote image requests.
   a({ href, children, ...rest }) {
     if (typeof href === "string" && href.startsWith("#cite-")) {
       return (

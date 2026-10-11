@@ -8,6 +8,7 @@ compatibility_flags = ["nodejs_compat"]
 BETTER_AUTH_URL = "https://internet-mindmap.vercel.app"
 # Web app URL — used for post-auth redirects and trusted origins.
 APP_BASE_URL = "https://internet-mindmap.vercel.app"
+MCP_WORKER_ORIGIN = "https://internet-mindmap-api.chaturchacharost.workers.dev"
 
 # LLM model overrides (defaults live in ai/llm/models.ts).
 # Uncomment to override on the next deployment. Free-plan options:

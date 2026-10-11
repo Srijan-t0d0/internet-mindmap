@@ -13,6 +13,8 @@ import {
 import type { EmbeddingModality, SourceType } from "@internet-mindmap/shared";
 import type { UIMessagePart } from "ai";
 
+export * from "./oauth-schema";
+
 type ItemStatus = "pending" | "processing" | "ready" | "error";
 
 type EmbeddingJobStatus = "pending" | "done" | "failed";

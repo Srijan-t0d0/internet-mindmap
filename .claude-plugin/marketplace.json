@@ -1,0 +1,11 @@
+{
+  "name": "internet-mindmap",
+  "owner": { "name": "Internet Mindmap" },
+  "plugins": [
+    {
+      "name": "internet-mindmap",
+      "source": "./plugins/internet-mindmap",
+      "description": "Connect your personal knowledge base through OAuth."
+    }
+  ]
+}

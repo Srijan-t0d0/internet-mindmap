@@ -16,17 +16,9 @@
 
 ## Features
 
-### MCP Server for Claude Code integration
+### MCP operational verification and directory submissions
 
-**What:** Expose the knowledge base as an MCP tool so Claude Code (and other MCP-compatible agents) can natively search bookmarks without leaving the terminal.
-
-**Why:** The REST agent API works but requires manual HTTP calls. MCP integration means typing "search my bookmarks about X" directly in Claude Code. This is the primary agent use case the project was designed for.
-
-**Context:** Build as an adapter layer on top of the existing `/api/agent/search` endpoint. MCP protocol is stable. Implement `search_knowledge_base` tool with params `{ query, limit?, tags? }`. Can run as a separate process or as part of the Next.js server. Reference: https://modelcontextprotocol.io
-
-**Effort:** S
-**Priority:** P2
-**Depends on:** Agent REST API being built and working
+Code is implemented; deployment, Neon-branch migration/login checks, external OAuth smoke tests and directory submissions remain pending. See `docs/mcp.md` for the checklist. CIMD requires a DNS-pinned transport unavailable in standard Workers fetch; DCR is enabled instead.
 
 ### Weekly digest email
 

@@ -114,16 +114,20 @@ const modules = {
   "../db/schema": ["items", "itemTags", "tags", "chatThreads", "chatMessages"],
 };
 const routeUrl = new URL("./chat.ts", import.meta.url).href;
+const searchUrl = new URL("../lib/search-kb.ts", import.meta.url).href;
+const searchModules = { ...modules, "./vector-search": modules["../lib/vector-search"], "./rerank": ["rerank"], "./usage": modules["../lib/usage"] };
 const hooks = registerHooks({
   resolve(specifier, context, next) {
-    if (context.parentURL === routeUrl && modules[specifier]) {
-      const source = modules[specifier].map((name) => `export const ${name} = globalThis.__chatMocks.${name};`).join("\n");
+    if (context.parentURL === routeUrl && specifier === "../lib/search-kb") return { url: searchUrl, shortCircuit: true };
+    const names = context.parentURL === routeUrl ? modules[specifier] : context.parentURL === searchUrl ? searchModules[specifier] : null;
+    if (names) {
+      const source = names.map((name) => `export const ${name} = globalThis.__chatMocks.${name};`).join("\n");
       return { url: `data:text/javascript,${encodeURIComponent(source)}`, shortCircuit: true };
     }
     return next(specifier, context);
   },
   load(url, context, next) {
-    if (url === routeUrl) return {
+    if (url === routeUrl || url === searchUrl) return {
       format: "module", shortCircuit: true,
       source: stripTypeScriptTypes(readFileSync(new URL(url), "utf8")),
     };

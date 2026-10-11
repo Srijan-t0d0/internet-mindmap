@@ -29,6 +29,13 @@
       "when": 1776459845233,
       "tag": "0003_past_luminals",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791702497158,
+      "tag": "0006_oauth_provider",
+      "breakpoints": true
     }
   ]
 }

@@ -107,7 +107,7 @@ packages/
 
 ## API
 
-All endpoints require `Authorization: Bearer <token>` header.
+User endpoints accept a Better Auth session cookie or extension bearer session. MCP requires an OAuth access JWT; admin endpoints accept the maintenance secret only. See [MCP connection and operations](docs/mcp.md).
 
 | Method | Route | Purpose |
 |--------|-------|---------|
@@ -119,7 +119,8 @@ All endpoints require `Authorization: Bearer <token>` header.
 | POST | `/api/items/:id` | Retry failed item |
 | DELETE | `/api/items/:id` | Delete item |
 | POST | `/api/chat` | Streaming RAG chat |
-| POST | `/api/agent/search` | Agent-only search |
+| POST | `/api/mcp` | OAuth MCP search, fetch, save_url |
+| POST | `/api/admin/items/:id/retry` | Admin-only reprocess |
 | POST | `/api/import` | Bulk bookmark import |
 | GET | `/api/tags` | List tags with counts |
 

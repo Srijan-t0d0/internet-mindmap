@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { inArray, and, eq, not, sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import {
   streamText,
   createUIMessageStreamResponse,
@@ -10,20 +10,13 @@ import {
 import { getChatModel, validateChatModel, chatProviderError, invalidateChatCredential } from "../ai/llm/user-model";
 import type { Env, Variables } from "../bindings";
 import { getDb } from "../db/client";
-import { buildEmbeddingRegistry } from "../ai/embeddings/registry";
-import {
-  vectorSearchPassages,
-  ftsSearchPassages,
-  rrfFuse,
-  toVectorLiteral,
-} from "../lib/vector-search";
-import { rerank } from "../lib/rerank";
+import { searchKB, type RawItem } from "../lib/search-kb";
 import { condenseQuery, type CondenseTurn } from "../lib/condense";
 import { generateFollowups } from "../lib/followups";
 import { generateThreadTitle } from "../lib/title";
 import { buildChatMessages } from "../ai/llm/prompts";
-import { getModels, DEFAULT_MODELS } from "../ai/llm/models";
-import { recordUsageEvent, estimateEmbeddingTokens } from "../lib/usage";
+import { getModels } from "../ai/llm/models";
+import { recordUsageEvent } from "../lib/usage";
 import { log } from "evlog";
 import * as schema from "../db/schema";
 
@@ -37,26 +30,6 @@ function isConversational(text: string): boolean {
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-type RawItem = {
-  id: string;
-  url: string;
-  title: string;
-  summary: string | null;
-};
-
-/**
- * One unit of evidence handed to the cross-encoder. `text` is what the
- * reranker scores against the query. `chunkId` is null for whole-doc
- * candidates (matched on items.embedding) and tag-graph candidates
- * (matched on shared tags, no vector match at all).
- */
-type RerankUnit = {
-  text: string;
-  itemId: string;
-  chunkId: string | null;
-  fromGraph: boolean;
-};
-
 // ── Hono route ────────────────────────────────────────────────────────────────
 // ── Persistence helpers ──────────────────────────────────────────────────
 // Derive a short thread title from the first user message.
@@ -238,199 +211,16 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
           }));
         }
 
-        // ── Embed the (condensed) query. HyDE was deleted — Anthropic's contextual
-        //    retrieval (Step 5) plus the cross-encoder rerank (Step 3) cover the
-        //    same recall lift HyDE used to provide on personal-KB domains, without
-        //    HyDE's hallucination risk. ────────────────────────────────────────────
-        const embedder = buildEmbeddingRegistry(c.env).active();
-
-        // ── Hybrid retrieval: dense pgvector + sparse Postgres FTS, fused by RRF.
-        //    Each branch returns up to K=20 raw passages; RRF picks the top 20
-        //    fused passages for the cross-encoder to rerank. Dense covers
-        //    semantic similarity; FTS covers exact-token matches (proper nouns,
-        //    code identifiers, error codes) where dense embeddings smear. ─────────
-        const [denseMatches, ftsMatches] = await Promise.all([
-          embedder.embed([{ modality: "text", content: retrievalQuery }]).then(([queryEmbedding]) => {
-            c.executionCtx.waitUntil(recordUsageEvent(c.env, {
-              userId,
-              requestId: c.get("requestId"),
-              eventType: "embedding",
-              source: "web",
-              model: embedder.id,
-              inputTokens: estimateEmbeddingTokens(retrievalQuery),
-              metadata: { source: "chat-query" },
-            }));
-            return vectorSearchPassages(db, toVectorLiteral(queryEmbedding), 20, userId);
-          }),
-          ftsSearchPassages(db, retrievalQuery, 20, userId),
-        ]);
-
-        const passageMatches = rrfFuse([denseMatches, ftsMatches], 20);
-
-        if (passageMatches.length === 0) {
-          log.warn({ event: "chat.retrieval.empty", requestId: c.get("requestId"), threadId });
+        const { denseMatches, ftsMatches, seedItems, graphItems, rerankInputs, ranked,
+          itemById, tagsByItem, groupedByItem, orderedItemIds } = await searchKB(c.env, userId, retrievalQuery, {
+          limit: 6, requestId: c.get("requestId"), source: "web",
+          waitUntil: (task) => c.executionCtx.waitUntil(task),
+          onStage: (stage) => { if (stage === "ranking") writer.write({ type: "data-status", data: { stage }, transient: true }); },
+        });
+        if (orderedItemIds.length === 0) {
           writer.write({ type: "error", errorText: "No saved items found. Save some content first!" });
           return;
         }
-
-        // Order-preserving unique item ids (best score first).
-        const seedIdSet = new Set<string>();
-        const seedIds: string[] = [];
-        for (const m of passageMatches) {
-          if (!seedIdSet.has(m.item_id)) {
-            seedIdSet.add(m.item_id);
-            seedIds.push(m.item_id);
-          }
-        }
-
-        // ── Round-trip 1: fetch seed items + their tags in parallel ─────────────────
-        const [seedItems, seedTagRows] = await Promise.all([
-          db
-            .select({
-              id: schema.items.id,
-              url: schema.items.url,
-              title: schema.items.title,
-              summary: schema.items.summary,
-            })
-            .from(schema.items)
-            .where(and(inArray(schema.items.id, seedIds), eq(schema.items.userId, userId))),
-
-          db
-            .select({
-              itemId: schema.itemTags.itemId,
-              tagId: schema.itemTags.tagId,
-              tagName: schema.tags.name,
-            })
-            .from(schema.itemTags)
-            .innerJoin(schema.tags, eq(schema.itemTags.tagId, schema.tags.id))
-            .where(inArray(schema.itemTags.itemId, seedIds)),
-        ]);
-
-        const tagsByItem = new Map<string, string[]>();
-        const seedTagIdSet = new Set<string>();
-        for (const row of seedTagRows) {
-          const names = tagsByItem.get(row.itemId) ?? [];
-          names.push(row.tagName);
-          tagsByItem.set(row.itemId, names);
-          seedTagIdSet.add(row.tagId);
-        }
-        const seedTagIds = [...seedTagIdSet];
-
-        // ── Round-trip 2: tag-graph hop ─────────────────────────────────────────────
-        const graphItems: RawItem[] =
-          seedTagIds.length > 0
-            ? await db
-              .selectDistinct({
-                id: schema.items.id,
-                url: schema.items.url,
-                title: schema.items.title,
-                summary: schema.items.summary,
-              })
-              .from(schema.items)
-              .innerJoin(schema.itemTags, eq(schema.itemTags.itemId, schema.items.id))
-              .where(
-                and(
-                  inArray(schema.itemTags.tagId, seedTagIds),
-                  not(inArray(schema.items.id, seedIds)),
-                  eq(schema.items.userId, userId),
-                  eq(schema.items.status, "ready")
-                )
-              )
-              .limit(8)
-            : [];
-
-        // ── Build the rerank candidate pool ──────────────────────────────────────
-        // One unit per piece of evidence: matched chunks (with their text), doc-level
-        // dense matches (text = title + summary from seedItems), and tag-graph items
-        // (also title + summary). The cross-encoder will score them all jointly
-        // against the query and rank by genuine relevance.
-        const itemById = new Map<string, RawItem>();
-        for (const it of seedItems) itemById.set(it.id, it);
-        for (const it of graphItems) itemById.set(it.id, it);
-
-        const rerankInputs: RerankUnit[] = [];
-        const seenChunkIds = new Set<string>();
-
-        for (const m of passageMatches) {
-          if (m.chunk_id && m.text) {
-            // Skip duplicate chunks if the UNION ever produces them.
-            if (seenChunkIds.has(m.chunk_id)) continue;
-            seenChunkIds.add(m.chunk_id);
-            rerankInputs.push({
-              text: m.text,
-              itemId: m.item_id,
-              chunkId: m.chunk_id,
-              fromGraph: false,
-            });
-          } else {
-            // Doc-level match (matched on items.embedding). Use title + summary
-            // as the rerank text so the cross-encoder has something to score.
-            const item = itemById.get(m.item_id);
-            if (!item) continue;
-            rerankInputs.push({
-              text: `${item.title}\n\n${item.summary ?? ""}`.trim(),
-              itemId: m.item_id,
-              chunkId: null,
-              fromGraph: false,
-            });
-          }
-        }
-
-        for (const item of graphItems) {
-          rerankInputs.push({
-            text: `${item.title}\n\n${item.summary ?? ""}`.trim(),
-            itemId: item.id,
-            chunkId: null,
-            fromGraph: true,
-          });
-        }
-
-        // ── Cross-encoder rerank: precision pass over the candidate pool. We
-        //    score against the condensed query so follow-ups like "and the React
-        //    one?" rank against the resolved noun, not the bare pronoun. ────────
-        const KEEP_TOP = 6;
-        writer.write({ type: "data-status", data: { stage: "ranking" }, transient: true });
-        const ranked = await rerank(c.env.AI, retrievalQuery, rerankInputs, KEEP_TOP);
-
-        c.executionCtx.waitUntil(recordUsageEvent(c.env, {
-          userId,
-          requestId: c.get("requestId"),
-          eventType: "rerank",
-          source: "web",
-          model: DEFAULT_MODELS.reranker,
-          metadata: {
-            candidates: rerankInputs.length,
-            kept: ranked.length,
-          },
-        }));
-
-        // ── Group ranked results by item, preserving rerank order ────────────────
-        type GroupedItem = {
-          itemId: string;
-          fromGraph: boolean;
-          passages: { chunkId: string; text: string }[];
-          bestRerankScore: number;
-        };
-        const groupedByItem = new Map<string, GroupedItem>();
-        for (const r of ranked) {
-          let g = groupedByItem.get(r.itemId);
-          if (!g) {
-            g = {
-              itemId: r.itemId,
-              fromGraph: r.fromGraph,
-              passages: [],
-              bestRerankScore: r.rerankScore,
-            };
-            groupedByItem.set(r.itemId, g);
-          }
-          if (r.chunkId) {
-            g.passages.push({ chunkId: r.chunkId, text: r.text });
-          }
-        }
-
-        const orderedItemIds = [...groupedByItem.values()]
-          .sort((a, b) => b.bestRerankScore - a.bestRerankScore)
-          .map((g) => g.itemId);
 
         // ── Build prompt and stream response ─────────────────────────────────────────
         const { system, userMessage } = buildChatMessages(

@@ -1,19 +1,23 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
-import { bearer } from "better-auth/plugins";
+import { bearer, jwt } from "better-auth/plugins";
+import { oauthProvider } from "@better-auth/oauth-provider";
+import { mcpUrls } from "./mcp-auth";
+import { oauthOptions, oauthMetadataGuard } from "./oauth-policy";
 import { getDb } from "../db/client";
 import * as schema from "../db/schema";
 import type { Env } from "../bindings";
 
 export function createAuth(env: Env) {
   const db = getDb(env);
+  const { resource, issuer } = mcpUrls(env);
   return betterAuth({
     database: drizzleAdapter(db, { provider: "pg", schema }),
     secret: env.BETTER_AUTH_SECRET,
-    // Must be the API Worker URL — not the web app URL.
-    // Better Auth uses this to build callback URLs and validate origins.
-    baseURL: env.BETTER_AUTH_URL,
+    // One public web origin owns login, consent, discovery and MCP.
+    baseURL: new URL(env.BETTER_AUTH_URL).origin,
     basePath: "/api/auth",
+    hooks: { before: oauthMetadataGuard },
     socialProviders: {
       google: {
         clientId: env.GOOGLE_CLIENT_ID,
@@ -24,6 +28,9 @@ export function createAuth(env: Env) {
       // Allows session tokens to be sent as Authorization: Bearer <token>
       // Used by the browser extension instead of cookies
       bearer(),
+      jwt({ jwt: { issuer }, disableSettingJwtHeader: true }),
+      oauthProvider(oauthOptions(resource)),
+      // CIMD stays off: Workers fetch cannot pin DNS peers. DCR is the safe fallback.
     ],
     session: {
       expiresIn: 60 * 60 * 24 * 365, // 1 year — extension tokens stay valid

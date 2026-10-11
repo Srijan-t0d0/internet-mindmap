@@ -32,16 +32,16 @@ export function toVectorLiteral(embedding: number[]): string {
  * chunk-level embeddings (item_chunks.embedding), then collapse to the
  * best score per item using MAX(score).
  *
- * Pass userId to scope results to a single user (web / agent per-user).
- * Omit userId for a global search (agent cross-user mode).
+ * Results are always scoped to a single owner.
  */
 export async function vectorSearch(
   db: Db,
   embeddingLiteral: string,
   limit: number,
-  userId?: string
+  userId: string
 ): Promise<VectorMatch[]> {
-  if (userId) {
+  if (!userId) throw new Error("An owner is required");
+  {
     const result = await db.execute<VectorMatch>(sql`
       WITH scores AS (
         SELECT id AS item_id,
@@ -67,28 +67,6 @@ export async function vectorSearch(
     return result.rows;
   }
 
-  // Global search — no user_id filter (agent cross-user mode)
-  const result = await db.execute<VectorMatch>(sql`
-    WITH scores AS (
-      SELECT id AS item_id,
-             1 - (embedding <=> ${embeddingLiteral}::vector) AS score
-      FROM items
-      WHERE status = 'ready'
-        AND embedding IS NOT NULL
-      UNION ALL
-      SELECT ic.item_id,
-             1 - (ic.embedding <=> ${embeddingLiteral}::vector) AS score
-      FROM item_chunks ic
-      JOIN items i ON ic.item_id = i.id
-      WHERE i.status = 'ready'
-    )
-    SELECT item_id, MAX(score) AS score
-    FROM scores
-    GROUP BY item_id
-    ORDER BY MAX(score) DESC
-    LIMIT ${limit}
-  `);
-  return result.rows;
 }
 
 /**

@@ -91,7 +91,7 @@ packages/
 - `POST /api/items/:id` — retry failed item
 - `DELETE /api/items/:id` — delete item (cascades to `item_chunks`, `embedding_inputs`, `embedding_jobs`, `item_tags`)
 - `POST /api/chat` — streaming RAG chat with knowledge base
-- `POST /api/agent/search` — agent API (agent token only)
+- `/api/mcp` — OAuth JWT-only remote MCP (search, fetch, save_url); see `docs/mcp.md`
 - `POST /api/import` — bulk Chrome bookmark import
 - `GET /api/tags` — list all tags with counts
 
@@ -99,7 +99,7 @@ packages/
 
 - **Web app**: Better Auth with Google OAuth — session cookies forwarded from Next.js server to CF Worker
 - **Browser extension**: `EXTENSION_API_TOKEN` bearer token (Worker secret)
-- **External AI agents**: `AGENT_API_TOKEN` bearer token (Worker secret)
+- **External AI agents**: OAuth authorization-code + PKCE through the MCP endpoint. Session tokens never authorize MCP.
 - `API_WORKER_URL` env var required on Vercel (defaults to `http://localhost:8787` for local dev)
 
 ## CF Bindings & Env
@@ -108,7 +108,9 @@ packages/
 - `PROCESS_ITEM` — Cloudflare Workflow binding (ingest pipeline)
 - `DATABASE_URL` — Postgres connection string (pgvector extension required)
 - `BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `BETTER_AUTH_URL`, `APP_BASE_URL` — Better Auth
-- `AGENT_API_TOKEN` — legacy bearer token for external agents
+- `AGENT_API_TOKEN` — admin-only maintenance token; not accepted on user routes
+- `MCP_WORKER_ORIGIN` — trusted Worker host behind the web reverse proxy
+- `MCP_INSPECTOR_ORIGIN` — optional exact browser Inspector origin (also requires CORS approval)
 - `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` — rate limiting (optional)
 - `EMBEDDING_ACTIVE` / `EMBEDDING_SHADOW` — embedding provider selection (see `ai/embeddings/registry.ts`)
 

@@ -8,7 +8,8 @@ export const corsMiddleware = createMiddleware<{ Bindings: Env }>((c, next) => c
     return allowed.includes(origin) ? origin : null;
   },
   allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowHeaders: ["Content-Type", "Authorization", "x-api-key"],
+  allowHeaders: ["Content-Type", "Authorization", "x-api-key", "mcp-protocol-version", "mcp-method", "mcp-name"],
+  exposeHeaders: ["WWW-Authenticate"],
   credentials: true,
   maxAge: 86400,
 })(c, next));

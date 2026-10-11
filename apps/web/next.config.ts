@@ -6,6 +6,10 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return [
       {
+        source: "/.well-known/:path*",
+        destination: `${process.env.API_WORKER_URL ?? "http://localhost:8787"}/.well-known/:path*`,
+      },
+      {
         source: "/api/:path*",
         destination: `${process.env.API_WORKER_URL ?? "http://localhost:8787"}/api/:path*`,
       },

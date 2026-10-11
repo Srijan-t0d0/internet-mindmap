@@ -12,9 +12,11 @@ export interface Env {
   BETTER_AUTH_SECRET: string;
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
-  BETTER_AUTH_URL: string; // API Worker URL — used as Better Auth's baseURL
+  BETTER_AUTH_URL: string; // Public web origin — issuer and MCP resource share this origin
   APP_BASE_URL: string;    // Web app URL — used for post-auth redirects & trusted origins
-  // Legacy agent token (external AI agents)
+  MCP_WORKER_ORIGIN?: string; // Trusted Worker origin behind the public reverse proxy
+  MCP_INSPECTOR_ORIGIN?: string; // Optional exact browser Inspector origin
+  // Admin-only maintenance token, never accepted by user or MCP routes
   AGENT_API_TOKEN: string;
   // Upstash Redis (rate limiting)
   UPSTASH_REDIS_REST_URL?: string;

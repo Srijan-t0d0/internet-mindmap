@@ -2,6 +2,10 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
+      "source": "/.well-known/:path*",
+      "destination": "https://internet-mindmap-api.chaturchacharost.workers.dev/.well-known/:path*"
+    },
+    {
       "source": "/api/:path*",
       "destination": "https://internet-mindmap-api.chaturchacharost.workers.dev/api/:path*"
     }

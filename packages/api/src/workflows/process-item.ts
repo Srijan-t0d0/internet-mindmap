@@ -322,7 +322,6 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
             chunkCount: chunks.length,
             status: "ready",
             lastError: null,
-            userId: event.payload.userId || null,
             title: llmResult.betterTitle || undefined,
             updatedAt: new Date(),
           })

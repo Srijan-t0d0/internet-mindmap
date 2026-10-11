@@ -11,7 +11,7 @@
  * This script:
  *   1. Lists items where status='ready' AND chunk_count >= 3 AND no chunk
  *      row has a context_prefix populated.
- *   2. With --apply, calls `POST /api/items/:id?force=1` for each, which
+ *   2. With --apply, calls `POST /api/admin/items/:id/retry` for each, which
  *      re-runs the ingest workflow and re-chunks/re-contextualises/
  *      re-embeds. Chunks are deleted + re-inserted by the workflow.
  *
@@ -24,7 +24,7 @@
  * Required env:
  *   DATABASE_URL                Neon connection string (read-only listing)
  *   API_BASE                    e.g. https://internet-mindmap-api.<sub>.workers.dev
- *   API_TOKEN                   Bearer token (Better Auth or AGENT_API_TOKEN)
+ *   API_TOKEN                   Admin bearer token (AGENT_API_TOKEN only)
  *
  * Example:
  *   API_BASE=http://localhost:8787 API_TOKEN=xxx node packages/api/scripts/backfill-contextual.mjs
@@ -78,14 +78,13 @@ async function listPending() {
   `;
 }
 
-async function reprocess(itemId, userId) {
-  const url = `${apiBase.replace(/\/$/, "")}/api/items/${encodeURIComponent(itemId)}?force=1`;
+async function reprocess(itemId) {
+  const url = `${apiBase.replace(/\/$/, "")}/api/admin/items/${encodeURIComponent(itemId)}/retry`;
   const res = await fetch(url, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiToken}`,
       "Content-Type": "application/json",
-      "X-Admin-User-Id": userId,
     },
   });
   if (!res.ok) {
@@ -115,7 +114,7 @@ async function main() {
       continue;
     }
     try {
-      await reprocess(item.id, item.user_id);
+      await reprocess(item.id);
       console.log(`  ✓ ${head}`);
     } catch (err) {
       console.log(`  ✗ ${head}  →  ${err instanceof Error ? err.message : err}`);
