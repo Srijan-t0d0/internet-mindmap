@@ -2,6 +2,7 @@
   "name": "internet-mindmap",
   "version": "1.0.0",
   "private": true,
+  "packageManager": "pnpm@10.11.1",
   "scripts": {
     "dev": "pnpm --filter @internet-mindmap/api --filter @internet-mindmap/web --filter @internet-mindmap/extension --parallel dev",
     "dev:api": "pnpm --filter @internet-mindmap/api dev",
@@ -20,9 +21,6 @@
       "esbuild",
       "sharp",
       "workerd"
-    ],
-    "patchedDependencies": {
-      "@better-auth/oauth-provider@1.7.7": "patches/@better-auth__oauth-provider@1.7.7.patch"
-    }
+    ]
   }
 }

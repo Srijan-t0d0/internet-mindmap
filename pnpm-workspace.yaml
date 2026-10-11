@@ -1,3 +1,6 @@
 packages:
   - "packages/*"
   - "apps/*"
+
+patchedDependencies:
+  "@better-auth/oauth-provider@1.7.7": "patches/@better-auth__oauth-provider@1.7.7.patch"
