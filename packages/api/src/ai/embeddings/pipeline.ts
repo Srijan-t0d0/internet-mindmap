@@ -29,6 +29,8 @@ export interface PendingEmbeddingInput {
   chunkIndex: number;
   /** The chunker id that produced this input. */
   chunkerId: string;
+  /** Parent document title, passed to the provider's document prompt. Not persisted. */
+  title?: string;
 }
 
 /**
@@ -103,6 +105,7 @@ export async function runProviderEmbed(
     supported.map((i) => ({
       modality: i.pending.modality,
       content: i.pending.content,
+      title: i.pending.title,
     }))
   );
 

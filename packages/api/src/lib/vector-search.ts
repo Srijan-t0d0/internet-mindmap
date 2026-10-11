@@ -3,12 +3,6 @@ import type { getDb } from "../db/client";
 
 type Db = ReturnType<typeof getDb>;
 
-// Extends Record<string, unknown> to satisfy drizzle's db.execute<T> constraint
-export type VectorMatch = {
-  item_id: string;
-  score: number;
-} & Record<string, unknown>;
-
 /**
  * Per-passage match. `chunk_id`/`chunk_index`/`text` are null when the row
  * matched on the doc-level enriched embedding (items.embedding) rather
@@ -27,46 +21,17 @@ export function toVectorLiteral(embedding: number[]): string {
   return `[${embedding.join(",")}]`;
 }
 
-/**
- * Score items via UNION of doc-level embeddings (items.embedding) and
- * chunk-level embeddings (item_chunks.embedding), then collapse to the
- * best score per item using MAX(score).
- *
- * Results are always scoped to a single owner.
- */
-export async function vectorSearch(
-  db: Db,
-  embeddingLiteral: string,
-  limit: number,
-  userId: string
-): Promise<VectorMatch[]> {
-  if (!userId) throw new Error("An owner is required");
-  {
-    const result = await db.execute<VectorMatch>(sql`
-      WITH scores AS (
-        SELECT id AS item_id,
-               1 - (embedding <=> ${embeddingLiteral}::vector) AS score
-        FROM items
-        WHERE user_id = ${userId}
-          AND status = 'ready'
-          AND embedding IS NOT NULL
-        UNION ALL
-        SELECT ic.item_id,
-               1 - (ic.embedding <=> ${embeddingLiteral}::vector) AS score
-        FROM item_chunks ic
-        JOIN items i ON ic.item_id = i.id
-        WHERE i.user_id = ${userId}
-          AND i.status = 'ready'
-      )
-      SELECT item_id, MAX(score) AS score
-      FROM scores
-      GROUP BY item_id
-      ORDER BY MAX(score) DESC
-      LIMIT ${limit}
-    `);
-    return result.rows;
-  }
+/** Optional item filters, applied inside the SQL so they narrow candidates before LIMIT. */
+export type SearchFilters = { sourceType?: string; tag?: string; since?: Date; until?: Date };
 
+function filterSql(f: SearchFilters) {
+  const parts = [];
+  if (f.sourceType) parts.push(sql`AND i.source_type = ${f.sourceType}`);
+  if (f.since) parts.push(sql`AND i.created_at >= ${f.since.toISOString()}::timestamptz`);
+  if (f.until) parts.push(sql`AND i.created_at < ${f.until.toISOString()}::timestamptz`);
+  if (f.tag) parts.push(sql`AND EXISTS (SELECT 1 FROM item_tags it JOIN tags t ON t.id = it.tag_id
+    WHERE it.item_id = i.id AND t.name = ${f.tag})`);
+  return sql.join(parts, sql` `);
 }
 
 /**
@@ -83,7 +48,8 @@ export async function ftsSearchPassages(
   db: Db,
   query: string,
   limit: number,
-  userId: string
+  userId: string,
+  filters: SearchFilters = {}
 ): Promise<PassageMatch[]> {
   const result = await db.execute<PassageMatch>(sql`
     SELECT ic.item_id,
@@ -97,6 +63,7 @@ export async function ftsSearchPassages(
     WHERE i.user_id = ${userId}
       AND i.status = 'ready'
       AND ic.fts @@ q
+      ${filterSql(filters)}
     ORDER BY ts_rank_cd(ic.fts, q) DESC
     LIMIT ${limit}
   `);
@@ -142,19 +109,23 @@ export async function vectorSearchPassages(
   db: Db,
   embeddingLiteral: string,
   limit: number,
-  userId: string
+  userId: string,
+  filters: SearchFilters = {}
 ): Promise<PassageMatch[]> {
+  // ponytail: ORDER BY over the UNION means a sequential scan, not HNSW.
+  // Fine for a personal corpus; split into two index-ordered queries past ~50k chunks.
   const result = await db.execute<PassageMatch>(sql`
     SELECT item_id, chunk_id, chunk_index, text, score FROM (
-      SELECT id AS item_id,
+      SELECT i.id AS item_id,
              NULL::text AS chunk_id,
              NULL::int AS chunk_index,
              NULL::text AS text,
-             1 - (embedding <=> ${embeddingLiteral}::vector) AS score
-      FROM items
-      WHERE user_id = ${userId}
-        AND status = 'ready'
-        AND embedding IS NOT NULL
+             1 - (i.embedding <=> ${embeddingLiteral}::vector) AS score
+      FROM items i
+      WHERE i.user_id = ${userId}
+        AND i.status = 'ready'
+        AND i.embedding IS NOT NULL
+        ${filterSql(filters)}
       UNION ALL
       SELECT ic.item_id,
              ic.id AS chunk_id,
@@ -165,6 +136,7 @@ export async function vectorSearchPassages(
       JOIN items i ON ic.item_id = i.id
       WHERE i.user_id = ${userId}
         AND i.status = 'ready'
+        ${filterSql(filters)}
     ) AS passages
     ORDER BY score DESC
     LIMIT ${limit}

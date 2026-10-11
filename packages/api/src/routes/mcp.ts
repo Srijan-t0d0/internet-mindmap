@@ -57,14 +57,20 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().all("/", async (
   const handler = createMcpHandler(() => {
     const server = new McpServer({ name: "internet-mindmap", version: "1.0.0" });
     server.registerTool("search", {
-      title: "Search saved knowledge", description: "Search your saved pages using semantic and keyword retrieval. Returns citation URLs and short excerpts.",
-      inputSchema: z.object({ query: z.string().trim().min(1).max(1000), limit: z.number().int().min(1).max(20).default(10) }),
+      title: "Search saved knowledge", description: "Search your saved pages using semantic and keyword retrieval. Returns citation URLs and short excerpts. Optional filters narrow by tag, source type, or save date.",
+      inputSchema: z.object({ query: z.string().trim().min(1).max(1000), limit: z.number().int().min(1).max(20).default(10),
+        tag: z.string().trim().min(1).max(64).optional().describe("Only items with this tag (kebab-case, e.g. machine-learning)"),
+        source_type: z.enum(["youtube", "reddit", "twitter", "github", "hackernews", "substack", "blog", "other"]).optional(),
+        saved_after: z.iso.date().optional().describe("Only items saved on or after this date (YYYY-MM-DD, UTC)"),
+        saved_before: z.iso.date().optional().describe("Only items saved before this date (YYYY-MM-DD, UTC)") }),
       outputSchema: z.object({ results: z.array(z.object({ id: z.string(), title: z.string(), url: z.string().min(1), snippet: z.string() })) }),
       annotations: { readOnlyHint: true, destructiveHint: false, openWorldHint: false },
-    }, async ({ query, limit }) => {
+    }, async ({ query, limit, tag, source_type, saved_after, saved_before }) => {
       if (!scopes.has("kb:read")) throw new Error("Insufficient scope");
       record("search");
-      const found = await searchKB(c.env, userId, query, { limit, waitUntil, source, requestId: c.get("requestId") });
+      const filters = tag || source_type || saved_after || saved_before ? { tag, sourceType: source_type,
+        since: saved_after ? new Date(saved_after) : undefined, until: saved_before ? new Date(saved_before) : undefined } : undefined;
+      const found = await searchKB(c.env, userId, query, { limit, waitUntil, source, requestId: c.get("requestId"), filters });
       const results: { id: string; title: string; url: string; snippet: string }[] = [];
       for (const id of found.orderedItemIds) {
         const item = found.itemById.get(id)!;

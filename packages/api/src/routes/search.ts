@@ -4,8 +4,7 @@ import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 import type { Env, Variables } from "../bindings";
 import { getDb } from "../db/client";
-import { buildEmbeddingRegistry } from "../ai/embeddings/registry";
-import { vectorSearch, toVectorLiteral } from "../lib/vector-search";
+import { searchKB } from "../lib/search-kb";
 import * as schema from "../db/schema";
 
 const app = new Hono<{ Bindings: Env; Variables: Variables }>()
@@ -22,7 +21,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
     ),
     async (c) => {
       const { q: query, limit: limitStr, source_type: sourceType, tag } = c.req.valid("query");
-      const limit = Math.min(parseInt(limitStr || "20"), 50);
+      const limit = Math.min(parseInt(limitStr || "20") || 20, 20);
       const userId = c.get("userId");
 
       if (!query?.trim()) {
@@ -33,43 +32,23 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
         return c.json({ error: "Query too long (max 1000 characters)" }, 400);
       }
 
-      // Query is embedded by the ACTIVE provider — the one that owns the
-      // vectors currently in items.embedding / item_chunks.embedding.
-      // During a migration (shadow provider writing to its own tables),
-      // this would fan out across providers and merge results. One model today.
-      const registry = buildEmbeddingRegistry(c.env);
-      const embedder = registry.active();
-      const [queryEmbedding] = await embedder.embed([
-        { modality: "text", content: query },
-      ]);
-      const embeddingLiteral = toVectorLiteral(queryEmbedding);
-
-      const db = getDb(c.env);
-
-      // pgvector UNION search: doc-level + chunk-level, dedup by MAX(score)
-      const matches = await vectorSearch(db, embeddingLiteral, limit, userId);
-
-      if (matches.length === 0) {
+      // Same hybrid pipeline as chat and MCP (dense + BM25 + rerank), filters pushed into SQL.
+      const found = await searchKB(c.env, userId, query, {
+        limit, source: "web", requestId: c.get("requestId"),
+        waitUntil: (task) => c.executionCtx.waitUntil(task),
+        filters: sourceType || tag ? { sourceType, tag } : undefined,
+      });
+      const matchIds = found.orderedItemIds;
+      if (matchIds.length === 0) {
         return c.json({ items: [], query, count: 0 }, 200);
       }
+      const scoreMap = new Map(matchIds.map((id) => [id, found.groupedByItem.get(id)!.bestRerankScore]));
 
-      const matchIds = matches.map((m) => m.item_id);
-      const scoreMap = new Map(matches.map((m) => [m.item_id, m.score]));
-
-      // Fetch items from Neon
-      let itemConditions = [
-        inArray(schema.items.id, matchIds),
-        eq(schema.items.userId, userId),
-      ] as ReturnType<typeof eq>[];
-
-      if (sourceType) {
-        itemConditions.push(eq(schema.items.sourceType, sourceType as typeof schema.items.$inferSelect.sourceType));
-      }
-
+      const db = getDb(c.env);
       const matchedItems = await db
         .select()
         .from(schema.items)
-        .where(and(...itemConditions));
+        .where(and(inArray(schema.items.id, matchIds), eq(schema.items.userId, userId)));
 
       // Fetch tags for matched items
       const itemTagRows = await db
@@ -89,7 +68,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
         tagsByItem.set(row.itemId, existing);
       }
 
-      let results = matchedItems.map((item) => ({
+      const results = matchedItems.map((item) => ({
         id: item.id,
         url: item.url,
         title: item.title,
@@ -111,10 +90,6 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
         created_at: item.createdAt,
         updated_at: item.updatedAt,
       }));
-
-      if (tag) {
-        results = results.filter((r) => r.tags.includes(tag));
-      }
 
       results.sort((a, b) => b.similarity - a.similarity);
 

@@ -7,6 +7,8 @@ export interface ProcessItemParams {
   source_type: string;
   userId?: string;
   requestId?: string;
+  /** Re-embed from stored content; keeps title, summary and tags (user edits survive). */
+  reembedOnly?: boolean;
 }
 
 /** Log the enqueue boundary once, including failures after an item was saved. */

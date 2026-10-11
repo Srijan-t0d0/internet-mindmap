@@ -20,7 +20,7 @@ Use `/mcp` to authenticate. Claude web users connect through the plugin's Connec
 
 | Tool | Permissions | Result |
 | --- | --- | --- |
-| `search(query, limit=10)` | `kb:read` | User-scoped hybrid search; IDs, titles, URLs, snippets; limit at most 20 |
+| `search(query, limit=10, tag?, source_type?, saved_after?, saved_before?)` | `kb:read` | User-scoped hybrid search; IDs, titles, URLs, snippets; limit at most 20; filters apply before ranking |
 | `fetch(id, offset=0, max_chars=20000)` | `kb:read` | Explicit text/metadata projection, no vectors; untrusted-content wrapper and next offset |
 | `save_url(url, title?, text?)` | `kb:write` | Owner+URL upsert, then background ingestion; returns ID/status |
 

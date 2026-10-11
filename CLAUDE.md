@@ -84,7 +84,7 @@ packages/
 ## API Routes
 
 - `POST /api/save` — save a URL (extension/agent auth)
-- `GET /api/search?q=` — semantic search (embed → pgvector UNION query over `items` + `item_chunks`)
+- `GET /api/search?q=` — hybrid search via `searchKB` (dense + BM25 → RRF → rerank), same pipeline as chat and MCP
 - `GET /api/items` — list/filter items with pagination
 - `GET /api/items/:id` — get single item
 - `PATCH /api/items/:id` — update item (read status, title)

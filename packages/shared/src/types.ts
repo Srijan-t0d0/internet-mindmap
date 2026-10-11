@@ -53,6 +53,10 @@ export interface EmbeddingInput {
    * to fetch. Keep content_hash on the caller side so jobs are idempotent.
    */
   content: string;
+  /** Queries and documents get different task prompts on asymmetric models. Default: document. */
+  kind?: "query" | "document";
+  /** Document title, for models whose document prompt accepts one. */
+  title?: string;
 }
 
 /**

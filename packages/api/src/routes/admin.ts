@@ -12,7 +12,8 @@ const BATCH_SIZE = 100;
  * POST /api/admin/reindex
  *
  * Re-triggers ProcessItemWorkflow for every ready item so they are
- * re-embedded and stored in Neon pgvector.
+ * re-embedded and stored in Neon pgvector. Embed-only: titles, summaries
+ * and tags (including user edits) are kept.
  *
  * Auth: Bearer ${AGENT_API_TOKEN} (inline — no requireAuth middleware on /api/admin)
  */
@@ -73,6 +74,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>()
         source_type: item.sourceType,
         userId: item.userId ?? undefined,
         requestId: c.get("requestId"),
+        reembedOnly: true,
       });
       queued++;
     }

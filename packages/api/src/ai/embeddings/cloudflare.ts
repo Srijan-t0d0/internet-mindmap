@@ -21,8 +21,12 @@ const CHAR_BUDGET_PER_INPUT = 8000;
 
 // Chunker params. Stored alongside embedding_inputs so a later model with a
 // bigger context window can decide to re-chunk without re-scraping.
-const CHUNK_SIZE = 6000;
-const CHUNK_OVERLAP = 500;
+// 1500 chars (~375 tokens) keeps each chunk inside bge-reranker-base's
+// 512-token window, so the reranker scores the whole chunk, not its head.
+const CHUNK_SIZE = 1500;
+export const CHUNK_OVERLAP = 200;
+// Workers AI caps texts per embedding call.
+const MAX_BATCH = 50;
 const CHUNKER_ID = `char-${CHUNK_SIZE}-${CHUNK_OVERLAP}`;
 
 function l2Normalize(v: number[]): number[] {
@@ -36,9 +40,11 @@ function l2Normalize(v: number[]): number[] {
 }
 
 export class CloudflareEmbeddingProvider implements EmbeddingProvider {
-  readonly id = "gemma-768-v1";
+  // v2: 1500-char chunks + EmbeddingGemma task prompts. v1 vectors are not
+  // comparable with v2 queries, so every item must be re-embedded.
+  readonly id = "gemma-768-v2";
   readonly name = "cloudflare-embeddinggemma-300m";
-  readonly version = "1";
+  readonly version = "2";
   readonly dims = 768;
   readonly modalities: readonly EmbeddingModality[] = ["text"];
   readonly maxTokens = 2048;
@@ -66,18 +72,23 @@ export class CloudflareEmbeddingProvider implements EmbeddingProvider {
       }
     }
 
-    const texts = inputs.map((i) =>
-      i.content.length > CHAR_BUDGET_PER_INPUT
-        ? i.content.slice(0, CHAR_BUDGET_PER_INPUT)
-        : i.content
-    );
+    // EmbeddingGemma is trained with asymmetric task prompts (model card).
+    const texts = inputs.map((i) => {
+      const prompt = i.kind === "query"
+        ? "task: search result | query: "
+        : `title: ${i.title?.replace(/\s+/g, " ").trim() || "none"} | text: `;
+      return (prompt + i.content).slice(0, CHAR_BUDGET_PER_INPUT);
+    });
 
-    const result = (await this.ai.run("@cf/google/embeddinggemma-300m", {
-      text: texts,
-    })) as { data: number[][] };
-
-    // Normalize every vector. Every provider commits to unit-length cosine.
-    return result.data.map(l2Normalize);
+    const vectors: number[][] = [];
+    for (let i = 0; i < texts.length; i += MAX_BATCH) {
+      const result = (await this.ai.run("@cf/google/embeddinggemma-300m", {
+        text: texts.slice(i, i + MAX_BATCH),
+      })) as { data: number[][] };
+      // Normalize every vector. Every provider commits to unit-length cosine.
+      vectors.push(...result.data.map(l2Normalize));
+    }
+    return vectors;
   }
 
   chunkText(text: string): string[] {

@@ -22,7 +22,8 @@ import { log } from "evlog";
  * content length >= 4000 chars. Short docs already have implicit context.
  */
 
-const BATCH_SIZE = 5;
+// Chunks are ~1500 chars, so ten fit comfortably in one prompt.
+const BATCH_SIZE = 10;
 const CHUNK_PREVIEW_CHARS = 1200;
 
 const SYSTEM = `You produce contextual prefixes for chunks of a document so each chunk can be retrieved standalone.

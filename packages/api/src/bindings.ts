@@ -22,7 +22,7 @@ export interface Env {
   UPSTASH_REDIS_REST_URL?: string;
   UPSTASH_REDIS_REST_TOKEN?: string;
   // Embedding provider selection (see ai/embeddings/registry.ts)
-  // Default: "gemma-768-v1" active, no shadow.
+  // Default: "gemma-768-v2" active, no shadow.
   EMBEDDING_ACTIVE?: string;
   EMBEDDING_SHADOW?: string;
   // LLM model overrides (see ai/llm/models.ts).

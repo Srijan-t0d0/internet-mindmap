@@ -99,11 +99,13 @@ const fake = {
   itemTags: { itemId: "itemId", tagId: "tagId" }, tags: { id: "id", name: "name" },
   chatThreads: { id: "threads", userId: "threadUserId" }, chatMessages: messageTable,
   inArray: () => ({}), and: () => ({}), eq: (column, value) => ({ column, value }), not: () => ({}), sql: () => ({}),
+  desc: () => ({}), gte: () => ({}), or: () => ({}), CHUNK_OVERLAP: 200, itemChunks: { itemId: "itemId", chunkIndex: "chunkIndex", text: "text" },
 };
 globalThis.__chatMocks = fake;
 const modules = {
   ai: ["streamText", "createUIMessageStreamResponse", "createUIMessageStream", "generateId"],
-  "drizzle-orm": ["inArray", "and", "eq", "not", "sql"],
+  "drizzle-orm": ["inArray", "and", "eq", "not", "sql", "desc", "gte", "or"],
+  "../ai/embeddings/cloudflare": ["CHUNK_OVERLAP"],
   "../ai/llm/user-model": ["getChatModel", "validateChatModel", "chatProviderError", "invalidateChatCredential"],
   "../db/client": ["getDb"], "../ai/embeddings/registry": ["buildEmbeddingRegistry"],
   "../lib/vector-search": ["vectorSearchPassages", "ftsSearchPassages", "rrfFuse", "toVectorLiteral"],
@@ -111,7 +113,7 @@ const modules = {
   "../lib/followups": ["generateFollowups"], "../lib/title": ["generateThreadTitle"],
   "../ai/llm/prompts": ["buildChatMessages"], "../ai/llm/models": ["getModels", "DEFAULT_MODELS"],
   "../lib/usage": ["recordUsageEvent", "estimateEmbeddingTokens"], evlog: ["log"],
-  "../db/schema": ["items", "itemTags", "tags", "chatThreads", "chatMessages"],
+  "../db/schema": ["items", "itemTags", "itemChunks", "tags", "chatThreads", "chatMessages"],
 };
 const routeUrl = new URL("./chat.ts", import.meta.url).href;
 const searchUrl = new URL("../lib/search-kb.ts", import.meta.url).href;
@@ -218,7 +220,7 @@ try {
 
   reset(); state.matches = []; state.embedding.resolve([[1]]); state.fts.resolve([]);
   const empty = []; await collect(await request(), empty);
-  assert.equal(empty.find((part) => part.type === "error").errorText, "No saved items found. Save some content first!");
+  assert.equal(empty.find((part) => part.type === "error").errorText, "Nothing in your saved items matches that question.");
   assert.ok(!state.events.includes("answer"));
 
   reset();

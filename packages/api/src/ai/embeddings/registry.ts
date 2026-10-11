@@ -12,7 +12,7 @@ import { CloudflareEmbeddingProvider } from "./cloudflare";
  *
  * Config via env:
  *   EMBEDDING_ACTIVE   — provider id whose vectors win at query time
- *                        (default: "gemma-768-v1")
+ *                        (default: "gemma-768-v2")
  *   EMBEDDING_SHADOW   — comma-separated provider ids to ALSO embed on save,
  *                        without affecting query time. Use this to build a
  *                        parallel corpus with a new model, then flip
@@ -92,7 +92,7 @@ export function buildEmbeddingRegistry(env: Env): EmbeddingRegistry {
     //   new VoyageMultimodalProvider(env.VOYAGE_API_KEY),
   ];
 
-  const activeId = env.EMBEDDING_ACTIVE || "gemma-768-v1";
+  const activeId = env.EMBEDDING_ACTIVE || "gemma-768-v2";
   const shadowIds =
     (env.EMBEDDING_SHADOW || "")
       .split(",")

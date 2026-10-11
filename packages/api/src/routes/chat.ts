@@ -219,7 +219,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
           onStage: (stage) => { if (stage === "ranking") writer.write({ type: "data-status", data: { stage }, transient: true }); },
         });
         if (orderedItemIds.length === 0) {
-          writer.write({ type: "error", errorText: "No saved items found. Save some content first!" });
+          writer.write({ type: "error", errorText: "Nothing in your saved items matches that question." });
           return;
         }
 
@@ -238,7 +238,8 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().post("/", async 
                 summary: item.summary ?? "",
                 tags: tagsByItem.get(item.id) ?? [],
                 fromGraph: group.fromGraph,
-                passages: group.passages,
+                // The LLM reads each hit with its neighbouring chunks; the UI quotes the hit itself.
+                passages: group.passages.map((p) => ({ chunkId: p.chunkId, text: p.context })),
               };
             })
             .filter((x): x is NonNullable<typeof x> => x !== null),

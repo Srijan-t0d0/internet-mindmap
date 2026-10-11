@@ -18,6 +18,7 @@ import { CloudflareLLMProvider } from "../ai/llm/cloudflare";
 import { getModels } from "../ai/llm/models";
 import { contextualizeChunks } from "../lib/contextualize";
 import { fetchYouTubeTranscript } from "../lib/youtube";
+import { htmlToText } from "../lib/html-text";
 import { recordUsageEvent, estimateEmbeddingTokens } from "../lib/usage";
 import { createLogger, log } from "evlog";
 import type { ProcessItemParams } from "../lib/enqueue";
@@ -94,6 +95,8 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
             rawContent: schema.items.rawContent,
             title: schema.items.title,
             notes: schema.items.notes,
+            summary: schema.items.summary,
+            keyPassages: schema.items.keyPassages,
           })
           .from(schema.items)
           .where(eq(schema.items.id, itemId))
@@ -115,13 +118,19 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
           }
         }
 
-        return { content: text, title: item.title, notes: item.notes || "" };
+        // raw_content stays HTML for display; tagging, chunking and indexing use prose.
+        return { content: htmlToText(text), title: item.title, notes: item.notes || "",
+          summary: item.summary ?? "", keyPassages: item.keyPassages ?? [] };
       });
 
       // Step 3: Generate tags + summary
       const llmResult = await runStep("generate-tags", async () => {
         if (!content.content) {
           return { betterTitle: "", tags: [], summary: "No content could be extracted.", keyPassages: [] };
+        }
+        // Reindex keeps the stored title, summary and tags so user edits survive.
+        if (event.payload.reembedOnly) {
+          return { betterTitle: "", tags: [], summary: content.summary, keyPassages: content.keyPassages };
         }
 
         // Fetch top-20 tags for this user by usage frequency
@@ -218,6 +227,7 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
             content: enrichedText,
             chunkIndex: 0,
             chunkerId: ENRICHED_CHUNKER_ID,
+            title: content.title,
           },
           ...chunks.map((chunk, i) => ({
             modality: "text" as const,
@@ -226,6 +236,7 @@ export class ProcessItemWorkflow extends WorkflowEntrypoint<Env, ProcessItemPara
             content: prefixes[i] ? `${prefixes[i]}\n\n${chunk}` : chunk,
             chunkIndex: i + 1, // +1 because chunkIndex=0 is the enriched doc
             chunkerId,
+            title: content.title,
           })),
         ];
 

@@ -23,10 +23,12 @@ vi.mock("../db/client", () => ({ getDb: () => {
         const sql = check(predicate);
         // Model two users sharing tags. A missing owner condition fails above,
         // before the fake storage returns the other user's private page.
-        const rows = "tagName" in fields ? [{ itemId: "a", tagId: "shared", tagName: "React" }]
+        const rows = "tagName" in fields ? [{ itemId: "a", tagId: "shared", tagName: "React", position: 1 }]
+          : "chunkIndex" in fields ? [{ itemId: "a", chunkIndex: 1, text: `${"o".repeat(200)} and the next chunk` }]
           : sql.includes("not ") ? [{ id: "graph-a", title: "A related", url: "https://a.example/related", summary: "A" }]
           : [{ id: "a", title: "A", url: "https://a.example", summary: "A" }];
-        return Object.assign(Promise.resolve(rows), { limit: async () => rows });
+        const chain = Object.assign(Promise.resolve(rows), { limit: async () => rows, groupBy: () => chain, orderBy: () => chain });
+        return chain;
       },
     };
     return builder;
@@ -37,11 +39,13 @@ vi.mock("../db/client", () => ({ getDb: () => {
   } };
 } }));
 
-it("searchKB scopes dense, sparse, item hydration, tag hydration and graph hops to the verified owner", async () => {
+it("searchKB scopes dense, sparse, item hydration, tag hydration, graph hops and neighbour chunks to the verified owner", async () => {
   const { searchKB } = await import("./search-kb");
   const results = await searchKB({ AI: {} } as Env, "user-a", "React");
-  expect(state.checked).toBe(5);
+  expect(state.checked).toBe(6);
   expect(results.orderedItemIds).toEqual(["a", "graph-a"]);
+  // Small-to-big: the next chunk is appended with its 200-char overlap trimmed.
+  expect(results.groupedByItem.get("a")!.passages[0].context).toBe("A private passage and the next chunk");
   expect(results.itemById.has("b")).toBe(false);
   await expect(searchKB({} as Env, "", "React")).rejects.toThrow("owner");
 });
