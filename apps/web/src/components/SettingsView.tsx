@@ -43,10 +43,10 @@ export default function SettingsView({ initialSettings, updatedAt }: { initialSe
               </form>
             </div>;
           })}</section>
-        <form className="space-y-5" onSubmit={(event) => { event.preventDefault(); void mutate("", "PATCH", { chatModel: model || null, systemPrompt: prompt || null }); }}>
-          <div><label htmlFor="chat-model" className="block font-medium mb-2">Default chat model</label><ModelPicker id="chat-model" label="Default chat model" value={model} onChange={setModel} settings={data} disabled={busy} /><p className="text-sm mt-2">Search models by name or company. Connect a provider to see its models.</p></div>
+        <form className="space-y-5" onSubmit={(event) => { event.preventDefault(); void mutate("", "PATCH", { systemPrompt: prompt || null }); }}>
+          <div><label htmlFor="chat-model" className="block font-medium mb-2">Default chat model</label><ModelPicker id="chat-model" label="Default chat model" value={model} onChange={(next) => { setModel(next); void mutate("", "PATCH", { chatModel: next || null }); }} settings={data} disabled={busy} /><p className="text-sm mt-2">Search models by name or company. Connect a provider to see its models.</p></div>
           <div><label htmlFor="custom-prompt" className="block font-medium mb-2">Custom instructions</label><textarea id="custom-prompt" className={control} rows={5} maxLength={2000} value={prompt} onChange={(event) => setPrompt(event.target.value)} disabled={busy} aria-describedby="prompt-count" /><p id="prompt-count" className="text-sm mt-2">{prompt.length}/2000 · Citation rules always apply.</p></div>
-          <button className={button} disabled={busy}>{busy ? "Saving…" : "Save preferences"}</button>
+          <button className={button} disabled={busy}>{busy ? "Saving…" : "Save instructions"}</button>
         </form>
       </>}
       {notice && <p role="status" className="text-sm">{notice}</p>}
