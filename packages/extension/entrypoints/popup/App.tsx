@@ -4,8 +4,14 @@ import { getApiKey, getUserEmail, setApiKey } from "../../lib/storage";
 
 const API_BASE = import.meta.env.WXT_API_BASE as string;
 
+type AuthState = "loading" | "signedIn" | "signedOut";
+
 function App() {
-  const [hasKey, setHasKey] = useState(false);
+  // "loading" on first mount — we don't know yet. Rendering the sign-in UI
+  // before the cached token is read causes a visible "logged-out flash"
+  // every time the popup opens. Render a neutral skeleton instead.
+  const [authState, setAuthState] = useState<AuthState>("loading");
+  const hasKey = authState === "signedIn";
   const [email, setEmail] = useState<string | null>(null);
   const [signing, setSigning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -13,29 +19,40 @@ function App() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    // Validate the stored token against the server on every popup open.
-    // Without this, signing out from the web app (or a server-side session
-    // expiry) leaves a stale token in chrome.storage.local and the popup
-    // keeps claiming "Connected".
+    // Two-phase auth check:
+    //   1. Read the cached token from chrome.storage.local (fast, ~1-5ms) and
+    //      optimistically flip to "signedIn" or "signedOut" immediately. This
+    //      kills the flash because we never render the wrong state after the
+    //      cache read completes.
+    //   2. In the background, validate the token against the server. If it's
+    //      been revoked (user signed out from the web app, session expired),
+    //      clear local state and flip to "signedOut". Network failures are
+    //      ignored so offline users aren't falsely signed out.
+    let cancelled = false;
     (async () => {
       const k = await getApiKey();
-      if (!k) return;
+      if (cancelled) return;
+      if (!k) {
+        setAuthState("signedOut");
+        return;
+      }
+      // Optimistic: trust the cache for the initial paint.
+      setAuthState("signedIn");
+      // Background validation.
       try {
         const res = await fetch(`${API_BASE}/api/auth/get-session`, {
           headers: { Authorization: `Bearer ${k}` },
         });
+        if (cancelled) return;
         const session = res.ok ? await res.json().catch(() => null) : null;
-        if (session?.user) {
-          setHasKey(true);
-        } else {
+        if (!session?.user) {
           // Token is dead — clear local state so the sign-in UI shows.
           await setApiKey("");
-          setHasKey(false);
+          if (!cancelled) setAuthState("signedOut");
         }
       } catch {
-        // Network failure — optimistically trust the cached token so the
+        // Network failure — keep the optimistic "signedIn" state so the
         // user isn't falsely signed out when offline.
-        setHasKey(true);
       }
     })();
     getUserEmail().then((e) => { if (e) setEmail(e); });
@@ -45,13 +62,13 @@ function App() {
       if ((msg as { type?: string }).type === "EXTENSION_AUTH_COMPLETE") {
         stopPolling();
         getApiKey().then((k) => {
-          if (k) { setHasKey(true); setSuccess(true); setTimeout(() => setSuccess(false), 2000); }
+          if (k) { setAuthState("signedIn"); setSuccess(true); setTimeout(() => setSuccess(false), 2000); }
           setSigning(false);
         });
       }
     };
     browser.runtime.onMessage.addListener(onMessage);
-    return () => { browser.runtime.onMessage.removeListener(onMessage); stopPolling(); };
+    return () => { cancelled = true; browser.runtime.onMessage.removeListener(onMessage); stopPolling(); };
   }, []);
 
   function stopPolling() {
@@ -79,7 +96,7 @@ function App() {
       const k = await getApiKey();
       if (k) {
         stopPolling();
-        setHasKey(true);
+        setAuthState("signedIn");
         setSigning(false);
         setSuccess(true);
         setTimeout(() => setSuccess(false), 2000);
@@ -112,7 +129,7 @@ function App() {
       }).catch(() => {});
     }
     await setApiKey("");
-    setHasKey(false);
+    setAuthState("signedOut");
     setSigning(false);
     setError(null);
   }
@@ -145,6 +162,19 @@ function App() {
           <p className="text-[11px] leading-tight mt-0.5" style={{ color: "var(--color-text-muted)" }}>Your personal knowledge graph</p>
         </div>
       </div>
+
+      {/* Loading — neutral placeholder to prevent flash of wrong auth UI */}
+      {authState === "loading" && (
+        <div
+          className="rounded-lg mb-3"
+          style={{
+            height: "244px",
+            backgroundColor: "var(--color-bg-secondary)",
+            opacity: 0.5,
+          }}
+          aria-hidden="true"
+        />
+      )}
 
       {/* Connected */}
       {hasKey && (
@@ -195,7 +225,7 @@ function App() {
       )}
 
       {/* Not connected */}
-      {!hasKey && (
+      {authState === "signedOut" && (
         <>
           {error && (
             <div className="px-3 py-2.5 rounded-lg mb-4 text-xs" style={{ backgroundColor: "rgba(220,80,80,0.06)", border: "1px solid rgba(220,80,80,0.15)", color: "#dc5050" }}>
