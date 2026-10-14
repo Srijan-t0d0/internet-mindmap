@@ -16,11 +16,15 @@ export interface Env {
   APP_BASE_URL: string;    // Web app URL — used for post-auth redirects & trusted origins
   MCP_WORKER_ORIGIN?: string; // Trusted Worker origin behind the public reverse proxy
   MCP_INSPECTOR_ORIGIN?: string; // Optional exact browser Inspector origin
+  MCP_RATE_LIMITER?: RateLimit; // Native Cloudflare per-user/client limiter
   // Admin-only maintenance token, never accepted by user or MCP routes
   AGENT_API_TOKEN: string;
-  // Upstash Redis (rate limiting)
-  UPSTASH_REDIS_REST_URL?: string;
-  UPSTASH_REDIS_REST_TOKEN?: string;
+  // Native Cloudflare rate limiting; missing bindings fail closed.
+  SETTINGS_RATE_LIMITER?: RateLimit;
+  CHAT_RATE_LIMITER?: RateLimit;
+  SEARCH_RATE_LIMITER?: RateLimit;
+  SAVE_RATE_LIMITER?: RateLimit;
+  IMPORT_RATE_LIMITER?: RateLimit;
   // Embedding provider selection (see ai/embeddings/registry.ts)
   // Default: "gemma-768-v2" active, no shadow.
   EMBEDDING_ACTIVE?: string;

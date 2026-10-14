@@ -37,8 +37,16 @@ describe("MCP trust boundaries", () => {
     expect(challenge.headers.get("WWW-Authenticate")).toContain('scope="kb:write"');
     expect(mcpChallenge(urls, new McpAuthError(401)).headers.get("WWW-Authenticate")).toContain(urls.metadata);
   });
-  it("fails closed when rate-limit credentials are absent and never accepts an unset admin secret", async () => {
-    expect(await allowMcpRequest({} as Env, "user", "client", () => {})).toBe(false);
+  it("uses native user/client limits, fails closed on binding errors and rejects unset admin secrets", async () => {
+    expect(await allowMcpRequest({} as Env, "user", "client")).toBe(false);
+    const keys: string[] = [];
+    const env = { MCP_RATE_LIMITER: { limit: async ({ key }: { key: string }) => {
+      keys.push(key); return { success: keys.length === 1 };
+    } } } as Env;
+    expect(await allowMcpRequest(env, "user", "client")).toBe(true);
+    expect(await allowMcpRequest(env, "user", "other-client")).toBe(false);
+    expect(keys).toEqual(['["user","client"]', '["user","other-client"]']);
+    expect(await allowMcpRequest({ MCP_RATE_LIMITER: { limit: async () => { throw new Error("unavailable"); } } }, "user", "client")).toBe(false);
     expect(await validAdminToken("Bearer undefined", undefined)).toBe(false);
     expect(await validAdminToken("Bearer correct", "correct")).toBe(true);
     expect(await validAdminToken("Bearer wrong", "correct")).toBe(false);

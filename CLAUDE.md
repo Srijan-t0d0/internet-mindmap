@@ -111,7 +111,7 @@ packages/
 - `AGENT_API_TOKEN` — admin-only maintenance token; not accepted on user routes
 - `MCP_WORKER_ORIGIN` — trusted Worker host behind the web reverse proxy
 - `MCP_INSPECTOR_ORIGIN` — optional exact browser Inspector origin (also requires CORS approval)
-- `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` — rate limiting (optional)
+- `MCP_RATE_LIMITER`, `SETTINGS_RATE_LIMITER`, `CHAT_RATE_LIMITER`, `SEARCH_RATE_LIMITER`, `SAVE_RATE_LIMITER`, `IMPORT_RATE_LIMITER` — native Cloudflare rate-limit bindings (required for their routes; approximate per-location counters). Limits in `wrangler.toml`; no Upstash.
 - `EMBEDDING_ACTIVE` / `EMBEDDING_SHADOW` — embedding provider selection (see `ai/embeddings/registry.ts`)
 
 ## Extension

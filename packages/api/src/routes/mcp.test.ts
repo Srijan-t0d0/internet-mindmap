@@ -9,10 +9,6 @@ import { mcpUrls } from "../lib/mcp-auth";
 import mcpRoute from "./mcp";
 
 const state = vi.hoisted(() => ({ calls: [] as string[], saved: [] as string[], owned: false }));
-vi.mock("@upstash/ratelimit", () => ({ Ratelimit: class {
-  static slidingWindow() { return {}; }
-  async limit() { return { success: true, pending: Promise.resolve() }; }
-} }));
 vi.mock("../lib/usage", () => ({ recordUsageEvent: async () => {} }));
 vi.mock("../lib/search-kb", () => ({ searchKB: async (_env: unknown, userId: string) => {
   state.calls.push(userId);
@@ -38,7 +34,7 @@ it("MCP HTTP rejects sessions, hostile origins, wrong hosts, missing rate limits
   const app = new Hono<{ Bindings: Env; Variables: Variables }>();
   app.use("*", async (c, next) => { c.set("auth", { api: { getJwks: async () => jwks } } as unknown as Auth); c.set("requestId", "test"); await next(); });
   app.route("/api/mcp", mcpRoute);
-  const env = { BETTER_AUTH_URL: "https://kb.example", UPSTASH_REDIS_REST_URL: "https://redis.example", UPSTASH_REDIS_REST_TOKEN: "test" } as Env;
+  const env = { BETTER_AUTH_URL: "https://kb.example", MCP_RATE_LIMITER: { limit: async () => ({ success: true }) } } as unknown as Env;
   const context = { waitUntil: () => {}, passThroughOnException: () => {}, props: {} };
   const send = (body: unknown, value: string, headers: Record<string, string> = {}, overrides: Partial<Env> = {}) => app.request(urls.resource, {
     method: "POST", headers: { Authorization: `Bearer ${value}`, "Content-Type": "application/json", Accept: "application/json, text/event-stream", Host: "kb.example", ...headers },
@@ -49,7 +45,7 @@ it("MCP HTTP rejects sessions, hostile origins, wrong hosts, missing rate limits
   const read = await access("kb:read");
   expect((await send(list, read, { Origin: "https://attacker.example" })).status).toBe(403);
   expect((await send(list, read, { Host: "attacker.example" })).status).toBe(403);
-  expect((await send(list, read, {}, { UPSTASH_REDIS_REST_TOKEN: undefined })).status).toBe(429);
+  expect((await send(list, read, {}, { MCP_RATE_LIMITER: undefined })).status).toBe(429);
   const decode = async (response: Response) => {
     const text = await response.text();
     return JSON.parse(text.startsWith("event:") || text.startsWith("data:") ? text.split("\n").find((line) => line.startsWith("data:"))!.slice(5) : text);

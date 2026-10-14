@@ -91,13 +91,13 @@ app.use("/api/tags/*", requireAuth);
 app.use("/api/import/*", requireAuth);
 app.use("/api/usage/*", requireAuth);
 app.use("/api/settings/*", requireAuth);
-app.use("/api/settings/*", createRateLimiter(10, "1 m", "settings"));
+app.use("/api/settings/*", createRateLimiter("SETTINGS_RATE_LIMITER"));
 
 // Rate limiters (after auth, so userId is available)
-app.use("/api/chat/*", createRateLimiter(20, "1 m", "chat"));
-app.use("/api/search/*", createRateLimiter(30, "1 m", "search"));
-app.use("/api/save/*", createRateLimiter(10, "1 m", "save"));
-app.use("/api/import/*", createRateLimiter(5, "1 h", "import"));
+app.use("/api/chat/*", createRateLimiter("CHAT_RATE_LIMITER"));
+app.use("/api/search/*", createRateLimiter("SEARCH_RATE_LIMITER"));
+app.use("/api/save/*", createRateLimiter("SAVE_RATE_LIMITER"));
+app.use("/api/import/*", createRateLimiter("IMPORT_RATE_LIMITER"));
 
 // Routes — chained for Hono RPC type inference
 const routes = app

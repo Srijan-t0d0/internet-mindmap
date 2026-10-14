@@ -1,14 +1,10 @@
-import { Redis } from "@upstash/redis/cloudflare";
-import { Ratelimit } from "@upstash/ratelimit";
 import type { Env } from "../bindings";
 
-export async function allowMcpRequest(env: Env, userId: string, clientId: string, waitUntil: (task: Promise<unknown>) => void) {
-  if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) return false;
+export async function allowMcpRequest(env: Pick<Env, "MCP_RATE_LIMITER">, userId: string, clientId: string) {
+  if (!env.MCP_RATE_LIMITER) return false;
   try {
-    const limiter = new Ratelimit({ redis: new Redis({ url: env.UPSTASH_REDIS_REST_URL, token: env.UPSTASH_REDIS_REST_TOKEN }),
-      limiter: Ratelimit.slidingWindow(30, "1 m"), prefix: "ratelimit:mcp" });
-    const { success, pending } = await limiter.limit(JSON.stringify([userId, clientId]));
-    waitUntil(pending);
+    // ponytail: location-local approximate limits; use shared counters if global quotas are needed.
+    const { success } = await env.MCP_RATE_LIMITER.limit({ key: JSON.stringify([userId, clientId]) });
     return success;
-  } catch { return false; } // MCP never fails open, including Redis outages.
+  } catch { return false; } // MCP never fails open, including binding outages.
 }

@@ -62,8 +62,7 @@ pnpm migrate
 cd packages/api
 wrangler secret put EXTENSION_API_TOKEN
 wrangler secret put AGENT_API_TOKEN
-wrangler secret put UPSTASH_REDIS_REST_URL
-wrangler secret put UPSTASH_REDIS_REST_TOKEN
+# Rate limits use native Cloudflare bindings configured in wrangler.toml; no Redis secrets.
 ```
 
 ### 3. Deploy

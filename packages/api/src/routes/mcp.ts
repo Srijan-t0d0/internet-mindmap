@@ -32,7 +32,7 @@ const app = new Hono<{ Bindings: Env; Variables: Variables }>().all("/", async (
     if (error instanceof McpAuthError) return mcpChallenge(urls, error);
     throw error;
   }
-  if (!await allowMcpRequest(c.env, identity.userId, identity.clientId, waitUntil)) {
+  if (!await allowMcpRequest(c.env, identity.userId, identity.clientId)) {
     return c.json({ error: "MCP rate limit unavailable or exceeded" }, 429, { "Retry-After": "60" });
   }
   let parsedBody: unknown;

@@ -27,6 +27,38 @@ MCP_WORKER_ORIGIN = "https://internet-mindmap-api.chaturchacharost.workers.dev"
 # Paste your Neon pooled connection string:
 #   postgres://user:pass@ep-xxx.neon.tech/neondb?sslmode=require
 
+[[ratelimits]]
+name = "MCP_RATE_LIMITER"
+namespace_id = "1001"
+simple = { limit = 30, period = 60 }
+
+# Each namespace is account-wide and must be reserved for this route.
+[[ratelimits]]
+name = "SETTINGS_RATE_LIMITER"
+namespace_id = "1002"
+simple = { limit = 10, period = 60 }
+
+[[ratelimits]]
+name = "CHAT_RATE_LIMITER"
+namespace_id = "1003"
+simple = { limit = 20, period = 60 }
+
+[[ratelimits]]
+name = "SEARCH_RATE_LIMITER"
+namespace_id = "1004"
+simple = { limit = 30, period = 60 }
+
+[[ratelimits]]
+name = "SAVE_RATE_LIMITER"
+namespace_id = "1005"
+simple = { limit = 10, period = 60 }
+
+# Native bindings support only 10s/60s windows; imports use 5/min, not 5/hour.
+[[ratelimits]]
+name = "IMPORT_RATE_LIMITER"
+namespace_id = "1006"
+simple = { limit = 5, period = 60 }
+
 [ai]
 binding = "AI"
 
